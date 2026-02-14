@@ -1,0 +1,44 @@
+concerns:
+  - id: C-001
+    name: Collaboration quality
+    description: Multiple architects must be able to edit shared architecture artifacts consistently.
+    stakeholders: [STK-ARCH, STK-LEAD]
+    tags: [Business]
+    measurement:
+      sli: collaborative_edit_success_rate
+      slo: ">= 99% successful save operations"
+      sla: "n/a"
+      service_level_id: SL-001
+
+  - id: C-002
+    name: Traceability and governance
+    description: Concerns, risks, decisions and views should be linked and reviewable.
+    stakeholders: [STK-LEAD, STK-SEC]
+    tags: [Business, Compliance]
+    measurement:
+      sli: linked_artifacts_coverage
+      slo: ">= 95% entities with valid links"
+      sla: "n/a"
+      service_level_id: SL-002
+
+  - id: C-003
+    name: Local-first reliability
+    description: Tool should run locally with predictable behavior and minimal external dependencies.
+    stakeholders: [STK-ARCH, STK-OPS]
+    tags: [Operational]
+    measurement:
+      sli: local_build_success_rate
+      slo: ">= 98% successful local builds"
+      sla: "n/a"
+      service_level_id: SL-001
+
+  - id: C-004
+    name: Usability for non-experts
+    description: Architecture editors who are not experts in ISO 42010/MODAF should still populate correct data.
+    stakeholders: [STK-ARCH, STK-LEAD]
+    tags: [Operational]
+    measurement:
+      sli: form_completion_without_manual_help
+      slo: ">= 80%"
+      sla: "n/a"
+      service_level_id: SL-003

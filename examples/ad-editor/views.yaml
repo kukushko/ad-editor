@@ -1,0 +1,27 @@
+views:
+  - id: VW-001
+    name: Information model view
+    viewpoint: Information
+    description: Shows relationships between concerns, capabilities, decisions and risks.
+    stakeholders: [STK-ARCH, STK-LEAD]
+    concerns: [C-002]
+    diagram_links:
+      - https://github.com/<TODO:org>/<TODO:repo>/blob/main/examples/ad-editor/diagrams/entity-link-model.svg?raw=1
+
+  - id: VW-002
+    name: Deployment/runtime view
+    viewpoint: Deployment
+    description: Shows local runtime components and build/download interaction flow.
+    stakeholders: [STK-DEV, STK-OPS]
+    concerns: [C-003]
+    diagram_links:
+      - https://github.com/<TODO:org>/<TODO:repo>/blob/main/examples/ad-editor/diagrams/local-runtime-components.svg?raw=1
+
+  - id: VW-003
+    name: UX workflow view
+    viewpoint: Functional
+    description: Shows workspace selection, search, edit, delete and build interactions.
+    stakeholders: [STK-ARCH]
+    concerns: [C-004]
+    diagram_links:
+      - https://github.com/<TODO:org>/<TODO:repo>/blob/main/examples/ad-editor/diagrams/editor-ux-flow.svg?raw=1

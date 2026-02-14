@@ -1,0 +1,36 @@
+risks:
+  - id: R-001
+    title: Inconsistent architecture data links
+    description: Users may save entities with missing or stale references, reducing trust in AD output.
+    type: Operational
+    status: Open
+    owner: STK-LEAD
+    affected_concerns: [C-002]
+    affected_capabilities: [CAP-002, CAP-004]
+    threatened_service_levels: [SL-002]
+    linked_views: [VW-001]
+    mitigation: Enforce validation before release and add review checklist for cross-reference quality.
+
+  - id: R-002
+    title: Local environment dependency drift
+    description: Missing runtime dependencies can break build/download flow on architect workstations.
+    type: Operational
+    status: Mitigating
+    owner: STK-OPS
+    affected_concerns: [C-003]
+    affected_capabilities: [CAP-003]
+    threatened_service_levels: [SL-001]
+    linked_views: [VW-002]
+    mitigation: Provide pinned requirements and startup health checks in project bootstrap.
+
+  - id: R-003
+    title: Misinterpretation of architecture fields
+    description: Non-expert users may fill fields inconsistently without contextual guidance.
+    type: Programmatic
+    status: Open
+    owner: STK-ARCH
+    affected_concerns: [C-004]
+    affected_capabilities: [CAP-001, CAP-004]
+    threatened_service_levels: [SL-003]
+    linked_views: [VW-003]
+    mitigation: Expand plain-language hints, examples and glossary definitions in UI metadata.
