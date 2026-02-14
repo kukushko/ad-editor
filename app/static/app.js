@@ -5,7 +5,6 @@ const state = {
   entity: null,
   rows: [],
   payload: {},
-  selectedIndex: -1,
   draft: null,
   dirty: false,
   sort: { column: 'id', direction: 'asc' },
@@ -24,6 +23,7 @@ const el = {
   saveBtn: document.getElementById('saveBtn'),
   cancelBtn: document.getElementById('cancelBtn'),
   newRowBtn: document.getElementById('newRowBtn'),
+  deleteRowBtn: document.getElementById('deleteRowBtn'),
 };
 
 async function apiGet(url) {
@@ -56,8 +56,7 @@ function saveSearchHistory(term) {
   const limit = state.metadata.filter_history_limit || 10;
   const history = loadSearchHistory().filter((x) => x !== term);
   history.unshift(term);
-  const next = history.slice(0, limit);
-  localStorage.setItem(keyForHistory(), JSON.stringify(next));
+  localStorage.setItem(keyForHistory(), JSON.stringify(history.slice(0, limit)));
 }
 
 function renderHistory() {
@@ -115,18 +114,17 @@ function sortRows(rows) {
   return list;
 }
 
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function highlight(text, tokens) {
   let result = text;
   tokens.forEach((t) => {
-    if (!t) return;
     const re = new RegExp(`(${escapeRegExp(t)})`, 'ig');
     result = result.replace(re, '<mark>$1</mark>');
   });
   return result;
-}
-
-function escapeRegExp(value) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function cellKey(rowId, column) {
@@ -142,28 +140,23 @@ function renderCellContent(row, column, tokens) {
   const rowId = row.id || 'row';
 
   if (Array.isArray(value)) {
-    const hasLong = value.length > 1;
     const key = cellKey(rowId, column);
     const expanded = state.expandedCells.has(key);
     const list = expanded ? value : value.slice(0, 1);
-    const links = list
+    const listHtml = list
       .map((item) => {
         const text = String(item ?? '');
-        if (isUrl(text)) {
-          return `<a href="${text}" target="_blank" rel="noreferrer">${highlight(text, tokens)}</a>`;
-        }
+        if (isUrl(text)) return `<a href="${text}" target="_blank" rel="noreferrer">${highlight(text, tokens)}</a>`;
         return highlight(text, tokens);
       })
       .map((item) => `<div>${item}</div>`)
       .join('');
-    const button = hasLong ? `<button type="button" class="small-btn" data-expand="${key}">${expanded ? 'Less' : 'More'}</button>` : '';
-    return `<div class="link-list">${links}${button}</div>`;
+    const btn = value.length > 1 ? `<button type="button" class="small-btn" data-expand="${key}">${expanded ? 'Less' : 'More'}</button>` : '';
+    return `<div class="link-list">${listHtml}${btn}</div>`;
   }
 
   const text = stringifyVisibleCell(row, column);
-  if (isUrl(text)) {
-    return `<a href="${text}" target="_blank" rel="noreferrer">${highlight(text, tokens)}</a>`;
-  }
+  if (isUrl(text)) return `<a href="${text}" target="_blank" rel="noreferrer">${highlight(text, tokens)}</a>`;
   return highlight(text, tokens);
 }
 
@@ -182,20 +175,18 @@ function renderTable() {
   tbody.innerHTML = filtered
     .map((row) => {
       const selected = state.draft && row.id === state.draft.id ? 'selected' : '';
-      return `<tr class="${selected}" data-row-id="${row.id || ''}">${columns
-        .map((c) => `<td>${renderCellContent(row, c, tokens)}</td>`)
-        .join('')}</tr>`;
+      return `<tr class="${selected}" data-row-id="${row.id || ''}">${columns.map((c) => `<td>${renderCellContent(row, c, tokens)}</td>`).join('')}</tr>`;
     })
     .join('');
 }
 
-function inferFieldType(name, value) {
+function inferFieldType(value) {
   if (Array.isArray(value)) return 'array';
   if (value && typeof value === 'object') return 'json';
   return 'text';
 }
 
-function createDefaultRow(entity) {
+function createDefaultRow() {
   const meta = getEntityMeta();
   const maxNum = state.rows
     .map((r) => String(r.id || ''))
@@ -203,15 +194,25 @@ function createDefaultRow(entity) {
     .filter(Boolean)
     .map((m) => Number(m[1]))
     .reduce((a, b) => Math.max(a, b), 0);
-  const nextId = `${meta.id_prefix}-${String(maxNum + 1).padStart(meta.id_width, '0')}`;
 
-  const base = { id: nextId };
-  Object.entries(meta.field_help || {}).forEach(([field, message]) => {
-    if (!(field in base)) {
-      base[field] = `TODO: ${message}`;
-    }
+  const row = { id: `${meta.id_prefix}-${String(maxNum + 1).padStart(meta.id_width, '0')}` };
+  Object.entries(meta.field_help || {}).forEach(([field, msg]) => {
+    if (!(field in row)) row[field] = `TODO: ${msg}`;
   });
-  return base;
+  return row;
+}
+
+function parseInputValue(input) {
+  const kind = input.dataset.kind;
+  if (kind === 'array') return input.value.split('\n').map((x) => x.trim()).filter(Boolean);
+  if (kind === 'json') {
+    try {
+      return JSON.parse(input.value || '{}');
+    } catch {
+      return {};
+    }
+  }
+  return input.value;
 }
 
 function renderForm() {
@@ -226,17 +227,16 @@ function renderForm() {
 
   const keys = Array.from(new Set(['id', ...Object.keys(draft)]));
   keys.forEach((field) => {
-    const row = document.createElement('div');
-    row.className = 'field-row';
+    const wrap = document.createElement('div');
+    wrap.className = 'field-row';
 
     const label = document.createElement('label');
     label.textContent = field;
-    row.appendChild(label);
+    wrap.appendChild(label);
 
     const enumKey = `${meta.entity}.${field}`;
     const enumValues = state.metadata.enums[enumKey] || null;
     const value = draft[field];
-    const type = inferFieldType(field, value);
 
     let input;
     if (field === 'id') {
@@ -245,10 +245,7 @@ function renderForm() {
       input.readOnly = true;
     } else if (enumValues) {
       input = document.createElement('select');
-      const empty = document.createElement('option');
-      empty.value = '';
-      empty.textContent = '-- select --';
-      input.appendChild(empty);
+      input.innerHTML = '<option value="">-- select --</option>';
       enumValues.forEach((opt) => {
         const option = document.createElement('option');
         option.value = opt;
@@ -256,54 +253,47 @@ function renderForm() {
         input.appendChild(option);
       });
       input.value = value || '';
-    } else if (type === 'array') {
-      input = document.createElement('textarea');
-      input.rows = 3;
-      input.value = (value || []).join('\n');
-      input.dataset.kind = 'array';
-    } else if (type === 'json') {
-      input = document.createElement('textarea');
-      input.rows = 4;
-      input.value = JSON.stringify(value || {}, null, 2);
-      input.dataset.kind = 'json';
     } else {
       input = document.createElement('textarea');
-      input.rows = 2;
-      input.value = value ?? '';
+      const kind = inferFieldType(value);
+      input.rows = kind === 'json' ? 4 : kind === 'array' ? 3 : 2;
+      if (kind === 'array') {
+        input.value = (value || []).join('\n');
+        input.dataset.kind = 'array';
+      } else if (kind === 'json') {
+        input.value = JSON.stringify(value || {}, null, 2);
+        input.dataset.kind = 'json';
+      } else {
+        input.value = value ?? '';
+      }
     }
 
     input.dataset.field = field;
     input.addEventListener('input', () => {
       state.dirty = true;
       state.draft[field] = parseInputValue(input);
+      updateActionButtons();
     });
 
-    row.appendChild(input);
+    wrap.appendChild(input);
 
     if (meta.field_help[field]) {
       const help = document.createElement('div');
       help.className = 'field-help';
       help.textContent = meta.field_help[field];
-      row.appendChild(help);
+      wrap.appendChild(help);
     }
 
-    el.rowForm.appendChild(row);
+    el.rowForm.appendChild(wrap);
   });
 }
 
-function parseInputValue(input) {
-  const kind = input.dataset.kind;
-  if (kind === 'array') {
-    return input.value.split('\n').map((x) => x.trim()).filter(Boolean);
-  }
-  if (kind === 'json') {
-    try {
-      return JSON.parse(input.value || '{}');
-    } catch {
-      return {};
-    }
-  }
-  return input.value;
+function updateActionButtons() {
+  const readOnly = state.architectureId === '_root';
+  const hasSelectedExisting = !!(state.draft && state.rows.some((row) => row.id === state.draft.id));
+  el.newRowBtn.disabled = readOnly;
+  el.saveBtn.disabled = readOnly;
+  el.deleteRowBtn.disabled = readOnly || !hasSelectedExisting;
 }
 
 async function loadRows() {
@@ -311,29 +301,48 @@ async function loadRows() {
   const response = await apiGet(`/architectures/${state.architectureId}/spec/${meta.entity}`);
   state.payload = response.data || {};
   state.rows = state.payload[meta.collection_key] || [];
-  state.selectedIndex = -1;
   state.draft = null;
   state.dirty = false;
   state.expandedCells.clear();
   renderTable();
   renderForm();
   renderHistory();
+  updateActionButtons();
 }
 
 async function saveCurrent() {
   if (!state.draft) return;
   const meta = getEntityMeta();
   const idx = state.rows.findIndex((r) => r.id === state.draft.id);
-  if (idx >= 0) {
-    state.rows[idx] = state.draft;
-  } else {
-    state.rows.push(state.draft);
-  }
+  if (idx >= 0) state.rows[idx] = state.draft;
+  else state.rows.push(state.draft);
+
   state.payload[meta.collection_key] = state.rows;
   await apiPut(`/architectures/${state.architectureId}/spec/${meta.entity}`, { data: state.payload });
   state.dirty = false;
   renderTable();
+  updateActionButtons();
   alert('Saved.');
+}
+
+async function deleteCurrent() {
+  if (!state.draft) return;
+  const idx = state.rows.findIndex((r) => r.id === state.draft.id);
+  if (idx < 0) return;
+
+  const confirmed = confirm(`Delete row with ID ${state.draft.id}?`);
+  if (!confirmed) return;
+
+  const meta = getEntityMeta();
+  state.rows.splice(idx, 1);
+  state.payload[meta.collection_key] = state.rows;
+  await apiPut(`/architectures/${state.architectureId}/spec/${meta.entity}`, { data: state.payload });
+  state.draft = null;
+  state.dirty = false;
+  renderTable();
+  renderForm();
+  updateActionButtons();
+  alert('Deleted.');
 }
 
 function confirmDiscardIfDirty() {
@@ -348,25 +357,7 @@ function selectRowById(rowId) {
   state.dirty = false;
   renderTable();
   renderForm();
-}
-
-async function initialize() {
-  state.metadata = await apiGet('/editor/metadata');
-  const arch = await apiGet('/architectures');
-  state.architectures = arch.architectures;
-
-  el.architectureSelect.innerHTML = state.architectures.map((id) => `<option value="${id}">${id}</option>`).join('');
-  state.architectureId = state.architectures[0];
-
-  el.entityNav.innerHTML = state.metadata.entity_order
-    .map((entity) => `<button type="button" data-entity="${entity}">${entity}</button>`)
-    .join('');
-  state.entity = state.metadata.entity_order[0];
-
-  bindEvents();
-  updateReadonlyMode();
-  await loadRows();
-  markEntityActive();
+  updateActionButtons();
 }
 
 function markEntityActive() {
@@ -379,8 +370,7 @@ function markEntityActive() {
 function updateReadonlyMode() {
   const readOnly = state.architectureId === '_root';
   el.readonlyBadge.classList.toggle('hidden', !readOnly);
-  el.newRowBtn.disabled = readOnly;
-  el.saveBtn.disabled = readOnly;
+  updateActionButtons();
 }
 
 function bindEvents() {
@@ -396,8 +386,7 @@ function bindEvents() {
 
   el.entityNav.addEventListener('click', async (e) => {
     const btn = e.target.closest('button[data-entity]');
-    if (!btn) return;
-    if (btn.dataset.entity === state.entity) return;
+    if (!btn || btn.dataset.entity === state.entity) return;
     if (!confirmDiscardIfDirty()) return;
     state.entity = btn.dataset.entity;
     state.sort = { column: 'id', direction: 'asc' };
@@ -406,9 +395,7 @@ function bindEvents() {
     await loadRows();
   });
 
-  el.searchInput.addEventListener('input', () => {
-    renderTable();
-  });
+  el.searchInput.addEventListener('input', renderTable);
   el.searchInput.addEventListener('change', () => {
     saveSearchHistory(el.searchInput.value);
     renderHistory();
@@ -424,11 +411,9 @@ function bindEvents() {
     const sortTarget = e.target.closest('[data-sort]');
     if (sortTarget) {
       const column = sortTarget.dataset.sort;
-      if (state.sort.column === column) {
-        state.sort.direction = state.sort.direction === 'asc' ? 'desc' : 'asc';
-      } else {
-        state.sort = { column, direction: 'asc' };
-      }
+      state.sort = state.sort.column === column
+        ? { column, direction: state.sort.direction === 'asc' ? 'desc' : 'asc' }
+        : { column, direction: 'asc' };
       renderTable();
       return;
     }
@@ -450,10 +435,24 @@ function bindEvents() {
 
   el.newRowBtn.addEventListener('click', () => {
     if (!confirmDiscardIfDirty()) return;
-    state.draft = createDefaultRow(state.entity);
+    state.draft = createDefaultRow();
     state.dirty = true;
     renderTable();
     renderForm();
+    updateActionButtons();
+  });
+
+  el.deleteRowBtn.addEventListener('click', async () => {
+    if (state.architectureId === '_root') return;
+    if (state.dirty) {
+      const proceed = confirm('Unsaved changes will be lost. Continue deleting selected row?');
+      if (!proceed) return;
+    }
+    try {
+      await deleteCurrent();
+    } catch (error) {
+      alert(`Delete failed: ${error.message}`);
+    }
   });
 
   el.saveBtn.addEventListener('click', async () => {
@@ -471,7 +470,27 @@ function bindEvents() {
     state.dirty = false;
     renderTable();
     renderForm();
+    updateActionButtons();
   });
+}
+
+async function initialize() {
+  state.metadata = await apiGet('/editor/metadata');
+  const arch = await apiGet('/architectures');
+  state.architectures = arch.architectures;
+
+  el.architectureSelect.innerHTML = state.architectures.map((id) => `<option value="${id}">${id}</option>`).join('');
+  state.architectureId = state.architectures[0];
+
+  el.entityNav.innerHTML = state.metadata.entity_order
+    .map((entity) => `<button type="button" data-entity="${entity}">${entity}</button>`)
+    .join('');
+  state.entity = state.metadata.entity_order[0];
+
+  bindEvents();
+  updateReadonlyMode();
+  await loadRows();
+  markEntityActive();
 }
 
 initialize().catch((error) => {
