@@ -8,6 +8,7 @@ const state = {
   draft: null,
   dirty: false,
   sort: { column: 'id', direction: 'asc' },
+  referenceEntityRowsCache: {},
 };
 
 const el = {
@@ -40,6 +41,41 @@ async function apiPut(url, data) {
   });
   if (!r.ok) throw new Error(await r.text());
   return r.json();
+}
+
+function getReferenceCacheKey(architectureId, entity) {
+  return `${architectureId}::${entity}`;
+}
+
+async function getEntityRowsForReferenceTooltip(architectureId, entity) {
+  const cacheKey = getReferenceCacheKey(architectureId, entity);
+  if (state.referenceEntityRowsCache[cacheKey]) return state.referenceEntityRowsCache[cacheKey];
+
+  const entityMeta = state.metadata.entities[entity];
+  if (!entityMeta) return [];
+
+  const response = await apiGet(`/architectures/${architectureId}/spec/${entityMeta.entity}`);
+  const payload = response.data || {};
+  const rows = payload[entityMeta.collection_key] || [];
+  state.referenceEntityRowsCache[cacheKey] = rows;
+  return rows;
+}
+
+async function attachReferenceTooltip(refBtn) {
+  if (!refBtn) return;
+  if (refBtn.dataset.tooltipLoaded === '1') return;
+
+  const refId = refBtn.dataset.refId;
+  const targetEntity = refBtn.dataset.refEntity;
+  if (!refId || !targetEntity) return;
+
+  const rows = await getEntityRowsForReferenceTooltip(state.architectureId, targetEntity);
+  const match = rows.find((row) => String(row.id || '') === String(refId));
+  if (match && typeof match.description === 'string' && match.description.trim()) {
+    refBtn.title = match.description.trim();
+  }
+
+  refBtn.dataset.tooltipLoaded = '1';
 }
 
 function buildNavUrl(navState) {
@@ -423,6 +459,7 @@ async function saveCurrent() {
 
   state.payload[meta.collection_key] = state.rows;
   await apiPut(`/architectures/${state.architectureId}/spec/${meta.entity}`, { data: state.payload });
+  delete state.referenceEntityRowsCache[getReferenceCacheKey(state.architectureId, meta.entity)];
   state.dirty = false;
   renderTable();
   updateActionButtons();
@@ -441,6 +478,7 @@ async function deleteCurrent() {
   state.rows.splice(idx, 1);
   state.payload[meta.collection_key] = state.rows;
   await apiPut(`/architectures/${state.architectureId}/spec/${meta.entity}`, { data: state.payload });
+  delete state.referenceEntityRowsCache[getReferenceCacheKey(state.architectureId, meta.entity)];
   state.draft = null;
   state.dirty = false;
   renderTable();
@@ -517,6 +555,14 @@ function bindEvents() {
     el.searchInput.value = el.searchHistory.value;
     renderTable();
     pushNavHistory('history');
+  });
+
+  el.entityTable.addEventListener('mouseover', (e) => {
+    const refBtn = e.target.closest('[data-ref-id][data-ref-entity]');
+    if (!refBtn) return;
+    attachReferenceTooltip(refBtn).catch(() => {
+      refBtn.dataset.tooltipLoaded = '1';
+    });
   });
 
   el.entityTable.addEventListener('click', (e) => {
