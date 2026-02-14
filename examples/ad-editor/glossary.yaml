@@ -1,0 +1,30 @@
+glossary:
+  - id: GLOSS-001
+    term: Architecture Document (AD)
+    definition: Structured architecture description containing stakeholders, concerns, decisions, views and risks.
+    aliases: [Architecture Spec]
+    tags: [Core]
+
+  - id: GLOSS-002
+    term: Concern
+    definition: A stakeholder-relevant issue that the architecture must address.
+    aliases: []
+    tags: [ISO42010]
+
+  - id: GLOSS-003
+    term: View
+    definition: Representation of architecture from a specific viewpoint to address selected concerns.
+    aliases: [Architecture View]
+    tags: [ISO42010, MODAF]
+
+  - id: GLOSS-004
+    term: Decision
+    definition: Architectural choice with rationale and links to affected concerns and capabilities.
+    aliases: [ADR]
+    tags: [Governance]
+
+  - id: GLOSS-005
+    term: Local-first
+    definition: Operating model where editor service runs on a user workstation over a local repository clone.
+    aliases: [Offline-friendly]
+    tags: [Operational]
