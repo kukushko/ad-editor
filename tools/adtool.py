@@ -23,7 +23,8 @@ Dependencies:
 
 Usage:
   python adtool.py validate ad/spec --report ad/output/validation_report.json
-  python adtool.py build ad/spec --out ad/output/AD_codified.md
+  python adtool.py build ad/spec --out ad/output/AD_codified.md --format md
+  python adtool.py build ad/spec --out ad/output/AD_codified.docx --format docx
 """
 
 from __future__ import annotations
@@ -980,6 +981,43 @@ def issues_to_gaps_md(issues: List[Issue]) -> str:
     return "\n".join(lines)
 
 
+
+
+def markdown_to_docx(markdown_text: str, out_path: Path) -> None:
+    try:
+        from docx import Document  # type: ignore
+    except Exception as exc:  # noqa: BLE001
+        raise RuntimeError("python-docx is required for DOCX output. Install: pip install python-docx") from exc
+
+    doc = Document()
+    for raw_line in markdown_text.splitlines():
+        line = raw_line.rstrip()
+        if not line:
+            doc.add_paragraph("")
+            continue
+
+        if line.startswith("### "):
+            doc.add_heading(line[4:].strip(), level=3)
+            continue
+        if line.startswith("## "):
+            doc.add_heading(line[3:].strip(), level=2)
+            continue
+        if line.startswith("# "):
+            doc.add_heading(line[2:].strip(), level=1)
+            continue
+        if line.startswith("- "):
+            doc.add_paragraph(line[2:].strip(), style="List Bullet")
+            continue
+        if re.match(r'^\d+\.\s+', line):
+            content = re.sub(r'^\d+\.\s+', '', line, count=1)
+            doc.add_paragraph(content.strip(), style="List Number")
+            continue
+
+        doc.add_paragraph(line)
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    doc.save(str(out_path))
+
 def summarize_issues(issues: List[Issue]) -> Dict[str, int]:
     out = {"ERROR": 0, "WARN": 0, "INFO": 0}
     for i in issues:
@@ -1072,7 +1110,17 @@ def cmd_build(args: argparse.Namespace) -> int:
         template_text=template_text,
     )
 
-    write_text(out_path, ad_text)
+    out_format = (args.format or "").strip().lower()
+    if not out_format:
+        out_format = "docx" if out_path.suffix.lower() == ".docx" else "md"
+
+    if out_format not in ("md", "docx"):
+        raise ValueError(f"Unsupported format: {out_format}")
+
+    if out_format == "docx":
+        markdown_to_docx(ad_text, out_path)
+    else:
+        write_text(out_path, ad_text)
     write_text(gaps_path, issues_to_gaps_md(issues))
     write_json(report_path, report)
 
@@ -1100,10 +1148,11 @@ def make_parser() -> argparse.ArgumentParser:
 
     pb = sub.add_parser("build", help="Validate + analyze + render AD (codified)")
     pb.add_argument("spec_dir", help="Directory with spec YAML files")
-    pb.add_argument("--out", required=True, help="Output AD markdown path (e.g., ad/output/AD_codified.md)")
+    pb.add_argument("--out", required=True, help="Output AD path (e.g., ad/output/AD_codified.md or .docx)")
     pb.add_argument("--gaps", help="Output gaps markdown path (default: alongside --out as gaps.md)")
     pb.add_argument("--report", help="Output report json path (default: alongside --out as validation_report.json)")
     pb.add_argument("--template", help="Optional Jinja2 markdown template path (overrides built-in template)")
+    pb.add_argument("--format", choices=["md", "docx"], default="", help="Output format (default: inferred from --out suffix)")
     pb.add_argument("--fail-on-warn", action="store_true", help="Exit non-zero if WARN exists")
 
     pb.add_argument("--system-name", default="RCS")
