@@ -12,17 +12,21 @@ from .schemas import (
     GitCommitRequest,
     GitPushRequest,
     SpecPayload,
+    ValidationIssueResponse,
+    ValidationResponse,
 )
 from .services.build_service import BuildService
 from .services.git_service import GitService
 from .services.spec_service import SpecService
+from .services.validation_service import ValidationService
 
 settings = load_settings()
 spec_service = SpecService(settings.specs_dir)
 git_service = GitService(settings.repo_root)
 build_service = BuildService(settings.repo_root, settings.adtool_path, settings.output_dir, settings.specs_dir)
+validation_service = ValidationService(settings.specs_dir)
 
-app = FastAPI(title="AD Editor API", version="0.1.0")
+app = FastAPI(title="AD Editor API", version="0.2.0")
 
 
 def to_command_result(result) -> CommandResult:
@@ -71,6 +75,24 @@ def put_entity(architecture_id: str, entity: str, payload: SpecPayload) -> SpecP
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return payload
+
+
+@app.post("/architectures/{architecture_id}/validate", response_model=ValidationResponse)
+def validate_architecture(architecture_id: str) -> ValidationResponse:
+    report = validation_service.validate(architecture_id)
+    return ValidationResponse(
+        ok=report.ok,
+        architecture_id=report.architecture_id,
+        issues=[
+            ValidationIssueResponse(
+                severity=issue.severity,
+                code=issue.code,
+                location=issue.location,
+                message=issue.message,
+            )
+            for issue in report.issues
+        ],
+    )
 
 
 @app.post("/architectures/{architecture_id}/build", response_model=CommandResult)

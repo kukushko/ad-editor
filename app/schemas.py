@@ -42,3 +42,16 @@ class CommandResult(BaseModel):
     stdout: str
     stderr: str
     returncode: int
+
+
+class ValidationIssueResponse(BaseModel):
+    severity: str
+    code: str
+    location: str
+    message: str
+
+
+class ValidationResponse(BaseModel):
+    ok: bool
+    architecture_id: str
+    issues: List[ValidationIssueResponse] = Field(default_factory=list)

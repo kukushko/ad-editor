@@ -1,11 +1,14 @@
 # AD Editor
 
-Минимальный каркас сервиса для совместной работы над Architecture Document (AD):
+Локальный веб-редактор для архитекторов: сервис запускается **локально на машине архитектора** и редактирует локальную рабочую копию Git-репозитория с AD-артефактами.
+
+## Что уже есть
 
 - хранение параметров архитектуры в YAML (Git-backed),
 - API для редактирования сущностей,
 - API для git-операций (branch/checkout/commit/push),
-- запуск существующего рендера `tools/adtool.py` для генерации AD.
+- запуск существующего рендера `tools/adtool.py` для генерации AD,
+- формальная валидация YAML-схем и ссылочной целостности через `POST /architectures/{id}/validate`.
 
 ## Быстрый старт
 
@@ -15,6 +18,8 @@ source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8080
 ```
+
+После запуска откройте `http://127.0.0.1:8080/docs`.
 
 ## Конфигурация
 
@@ -30,6 +35,7 @@ uvicorn app.main:app --reload --port 8080
 - `GET /architectures`
 - `GET /architectures/{id}/spec/{entity}`
 - `PUT /architectures/{id}/spec/{entity}`
+- `POST /architectures/{id}/validate`
 - `POST /architectures/{id}/build`
 - `GET /git/branches`
 - `POST /git/checkout`
@@ -37,6 +43,23 @@ uvicorn app.main:app --reload --port 8080
 - `DELETE /git/branch/{name}`
 - `POST /git/commit`
 - `POST /git/push`
+
+## Формализация схем (первая версия)
+
+Сервис валидирует структуру файлов:
+
+- `stakeholders.yaml`
+- `concerns.yaml`
+- `capabilities.yaml`
+- `service_levels.yaml` (optional)
+- `risks.yaml` (optional)
+
+Проверяются:
+
+- типы и обязательные поля (Pydantic-модели),
+- запрет лишних полей на уровне объектов,
+- уникальность `id` внутри каждой коллекции,
+- ссылочная целостность между сущностями (stakeholders/concerns/capabilities/service_levels/risks).
 
 ## Какие вводные нужны для production-версии
 
