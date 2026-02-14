@@ -53,6 +53,8 @@ DEFAULT_FILES = {
     "capabilities": ("capabilities.yaml", "capabilities.yml"),
     "service_levels": ("service_levels.yaml", "service_levels.yml"),
     "risks": ("risks.yaml", "risks.yml"),
+    "views": ("views.yaml", "views.yml"),
+    "glossary": ("glossary.yaml", "glossary.yml"),
 }
 
 SEVERITY_ORDER = {"ERROR": 0, "WARN": 1, "INFO": 2}
@@ -146,6 +148,24 @@ class Risk:
     mitigation: str         # free text or references to CAP IDs/actions
 
 
+@dataclasses.dataclass(frozen=True)
+class View:
+    id: str
+    name: str
+    viewpoint: str
+    description: str
+    stakeholders: List[str]
+    concerns: List[str]
+    diagram_links: List[str]
+
+
+@dataclasses.dataclass(frozen=True)
+class GlossaryTerm:
+    id: str
+    name: str
+    description: str
+
+
 @dataclasses.dataclass
 class Issue:
     severity: str     # ERROR / WARN / INFO
@@ -193,7 +213,7 @@ def load_spec(spec_dir: Path) -> Tuple[Dict[str, Any], List[Issue]]:
     for key, candidates in DEFAULT_FILES.items():
         fp = find_file(spec_dir, candidates)
         if fp is None:
-            if key in ("service_levels", "risks"):
+            if key in ("service_levels", "risks", "views", "glossary"):
                 loaded[key] = {}
                 continue
             issues.append(Issue(
@@ -491,6 +511,70 @@ def parse_risks(raw: Dict[str, Any], issues: List[Issue]) -> List[Risk]:
     return out
 
 
+def parse_views(raw: Dict[str, Any], issues: List[Issue]) -> List[View]:
+    items = raw.get("views", []) or []
+    if not isinstance(items, list):
+        issues.append(Issue("ERROR", "TYPE_ERROR", "views", "Expected list at key 'views'"))
+        return []
+
+    out: List[View] = []
+    seen: set[str] = set()
+
+    for idx, it in enumerate(items):
+        loc = f"views[{idx}]"
+        if not isinstance(it, dict):
+            issues.append(Issue("ERROR", "TYPE_ERROR", loc, f"Expected dict, got {type(it).__name__}"))
+            continue
+
+        vid = _require_str(it, "id", loc, issues, required=True)
+        _validate_id(vid, f"{loc}.id", issues)
+        if vid in seen:
+            issues.append(Issue("ERROR", "DUPLICATE_ID", f"{loc}.id", f"Duplicate view id '{vid}'"))
+        seen.add(vid)
+
+        out.append(View(
+            id=vid,
+            name=_require_str(it, "name", loc, issues, required=True),
+            viewpoint=_require_str(it, "viewpoint", loc, issues, required=False),
+            description=_require_str(it, "description", loc, issues, required=False),
+            stakeholders=_require_list_of_str(it, "stakeholders", loc, issues, required=False),
+            concerns=_require_list_of_str(it, "concerns", loc, issues, required=False),
+            diagram_links=_require_list_of_str(it, "diagram_links", loc, issues, required=False),
+        ))
+
+    out.sort(key=lambda x: x.id)
+    return out
+
+
+def parse_glossary(raw: Dict[str, Any], issues: List[Issue]) -> List[GlossaryTerm]:
+    items = raw.get("glossary", []) or []
+    if not isinstance(items, list):
+        issues.append(Issue("ERROR", "TYPE_ERROR", "glossary", "Expected list at key 'glossary'"))
+        return []
+
+    out: List[GlossaryTerm] = []
+    seen: set[str] = set()
+
+    for idx, it in enumerate(items):
+        loc = f"glossary[{idx}]"
+        if not isinstance(it, dict):
+            issues.append(Issue("ERROR", "TYPE_ERROR", loc, f"Expected dict, got {type(it).__name__}"))
+            continue
+
+        gid = _require_str(it, "id", loc, issues, required=True)
+        _validate_id(gid, f"{loc}.id", issues)
+        if gid in seen:
+            issues.append(Issue("ERROR", "DUPLICATE_ID", f"{loc}.id", f"Duplicate glossary id '{gid}'"))
+        seen.add(gid)
+
+        term = _require_str(it, "term", loc, issues, required=True)
+        definition = _require_str(it, "definition", loc, issues, required=True)
+        out.append(GlossaryTerm(id=gid, name=term, description=definition))
+
+    out.sort(key=lambda x: x.id)
+    return out
+
+
 # ---------------------------
 # Analysis (gaps, coverage, consistency)
 # ---------------------------
@@ -527,6 +611,7 @@ def analyze(
     capabilities: List[Capability],
     service_levels: List[ServiceLevel],
     risks: List[Risk],
+    views: List[View],
 ) -> List[Issue]:
     issues: List[Issue] = []
 
@@ -534,6 +619,7 @@ def analyze(
     concern_ids = {c.id for c in concerns}
     sl_ids = {s.id for s in service_levels}
     cap_ids = {c.id for c in capabilities}
+    view_ids = {v.id for v in views}
 
     # Broken link checks: concern -> stakeholders
     for c in concerns:
@@ -671,6 +757,25 @@ def analyze(
             issues.append(Issue("INFO", "GAP", f"risks:{r.id}.linked_views",
                                "Risk has no linked_views (recommend AV-1 + relevant OV/SV/AcV references)"))
 
+        for vid in r.linked_views:
+            if vid not in view_ids:
+                issues.append(Issue("WARN", "BROKEN_LINK", f"risks:{r.id}.linked_views",
+                                   f"Risk references unknown view id '{vid}'"))
+
+    # View checks
+    for v in views:
+        for sid in v.stakeholders:
+            if sid not in stk_ids:
+                issues.append(Issue("ERROR", "BROKEN_LINK", f"views:{v.id}.stakeholders",
+                                   f"View references unknown stakeholder id '{sid}'"))
+        for cid in v.concerns:
+            if cid not in concern_ids:
+                issues.append(Issue("ERROR", "BROKEN_LINK", f"views:{v.id}.concerns",
+                                   f"View references unknown concern id '{cid}'"))
+        if not v.diagram_links:
+            issues.append(Issue("INFO", "GAP", f"views:{v.id}.diagram_links",
+                               "View has no diagram links"))
+
     # Stable ordering
     issues.sort(key=lambda i: (SEVERITY_ORDER.get(i.severity, 99), i.code, i.location, i.message))
     return issues
@@ -699,12 +804,13 @@ DEFAULT_TEMPLATE = r"""
 - **{{ term.name }}** — {{ term.description }}
 {% endfor %}
 {% else %}
-- **Stakeholder** — сторона, чьи интересы затрагиваются архитектурой.
-- **Concern** — значимый интерес/вопрос, который архитектура должна адресовать.
-- **Capability** — способность системы обеспечивать определённый результат (что система должна уметь).
-- **SLO (Service Level Objective)** — целевой уровень сервиса (внутренний/операционный).
-- **SLA (Service Level Agreement)** — договорённый/контрактный уровень сервиса.
-- **Risk** — неопределённость, которая может повлиять на concerns/capabilities/SLA и цели проекта.
+- **Stakeholder** — person, team, or organization with relevant interests in the system architecture.
+- **Concern** — architecturally significant interest that must be addressed by the architecture.
+- **Capability** — ability of the system to deliver an expected business or technical outcome.
+- **View** — architecture representation from a specific viewpoint to address selected concerns.
+- **SLO (Service Level Objective)** — target service objective tracked operationally.
+- **SLA (Service Level Agreement)** — contractual or formalized service commitment.
+- **Risk** — uncertainty that can negatively affect concerns, capabilities, or service levels.
 {% endif %}
 
 ---
@@ -719,7 +825,7 @@ DEFAULT_TEMPLATE = r"""
 ---
 
 ## 3. Concern Registry
-> Каждый concern описан один раз и имеет один ID; категории задаются тегами.
+> Each concern is defined once with a unique ID; categories are represented via tags.
 
 | ID | Name | Description | Stakeholders | Tags | Measurement (SLI / SLO / SLA / SL ref) |
 |---|---|---|---|---|---|
@@ -745,7 +851,20 @@ DEFAULT_TEMPLATE = r"""
 
 ---
 
-## 5. Risk Register (AV-1 aligned)
+## 5. Architecture Views
+| View ID | Name | Viewpoint | Description | Stakeholders | Concerns | Diagram Links |
+|---|---|---|---|---|---|---|
+{% if views %}
+{% for v in views -%}
+| {{ v.id }} | {{ v.name | replace("|","\\|") }} | {{ v.viewpoint | replace("|","\\|") }} | {{ v.description_one_line | replace("|","\\|") }} | {{ v.stakeholders_str | replace("|","\\|") }} | {{ v.concerns_str | replace("|","\\|") }} | {{ v.diagram_links_str | replace("|","\\|") }} |
+{% endfor %}
+{% else %}
+| {{ todo() }} | No views provided | {{ todo() }} | {{ todo() }} | {{ todo() }} | {{ todo() }} | {{ todo() }} |
+{% endif %}
+
+---
+
+## 6. Risk Register (AV-1 aligned)
 | Risk ID | Title | Type | Status | Owner (STK) | Affected Concerns | Affected Capabilities | Threatened SL | Linked Views | Mitigation |
 |---|---|---|---|---|---|---|---|---|---|
 {% if risks %}
@@ -758,7 +877,7 @@ DEFAULT_TEMPLATE = r"""
 
 ---
 
-## 6. Service Level Catalog
+## 7. Service Level Catalog
 {% if service_levels %}
 | ID | Name | SLI definition | Window | Exclusions | Target SLO | Contractual SLA |
 |---|---|---|---|---|---|---|
@@ -771,18 +890,18 @@ No service level catalog provided. {{ todo() }}
 
 ---
 
-## 7. Traceability (high level)
-### 7.1 Stakeholder → Concerns
+## 8. Traceability (high level)
+### 8.1 Stakeholder → Concerns
 {% for s in stakeholders -%}
 - **{{ s.id }} {{ s.name }}** → {{ stakeholder_to_concerns.get(s.id) | default(todo(), true) }}
 {% endfor %}
 
-### 7.2 Concern → Capabilities
+### 8.2 Concern → Capabilities
 {% for c in concerns_src -%}
 - **{{ c.id }} {{ c.name }}** → {{ concern_to_capabilities.get(c.id) | default(todo(), true) }}
 {% endfor %}
 
-### 7.3 Risk → (Concerns, Capabilities, SL)
+### 8.3 Risk → (Concerns, Capabilities, SL)
 {% if risks_trace %}
 {% for line in risks_trace -%}
 - {{ line }}
@@ -793,7 +912,7 @@ No service level catalog provided. {{ todo() }}
 
 ---
 
-## 8. Gaps / TODO list (generated)
+## 9. Gaps / TODO list (generated)
 {% if gaps %}
 | Severity | Code | Location | Message |
 |---|---|---|---|
@@ -810,6 +929,7 @@ def render_ad(
     stakeholders: List[Stakeholder],
     concerns_src: List[Concern],
     capabilities: List[Capability],
+    views_src: List[View],
     service_levels: List[ServiceLevel],
     risks_src: List[Risk],
     issues: List[Issue],
@@ -873,6 +993,16 @@ def render_ad(
             "tags_str": ", ".join(cap_tags) if cap_tags else todo(),
         })
 
+    views_rows = [{
+        "id": v.id,
+        "name": v.name or todo(),
+        "viewpoint": v.viewpoint or todo(),
+        "description_one_line": as_one_line(v.description) or "",
+        "stakeholders_str": ", ".join(v.stakeholders) if v.stakeholders else todo(),
+        "concerns_str": ", ".join(v.concerns) if v.concerns else todo(),
+        "diagram_links_str": ", ".join(v.diagram_links) if v.diagram_links else todo(),
+    } for v in views_src]
+
     service_levels_rows = [{
         "id": sl.id,
         "name": sl.name or todo(),
@@ -934,6 +1064,7 @@ def render_ad(
         concerns_by_tag=concerns_by_tag,
 
         capabilities=capabilities_rows,
+        views=views_rows,
 
         risks=risks_rows,
         risks_trace=risks_trace,
@@ -980,6 +1111,8 @@ def issues_to_gaps_md(issues: List[Issue]) -> str:
     return "\n".join(lines)
 
 
+
+
 def summarize_issues(issues: List[Issue]) -> Dict[str, int]:
     out = {"ERROR": 0, "WARN": 0, "INFO": 0}
     for i in issues:
@@ -991,7 +1124,7 @@ def summarize_issues(issues: List[Issue]) -> Dict[str, int]:
 # Build / CLI
 # ---------------------------
 
-def build_all(spec_dir: Path) -> Tuple[List[Stakeholder], List[Concern], List[Capability], List[ServiceLevel], List[Risk], List[Issue]]:
+def build_all(spec_dir: Path) -> Tuple[List[Stakeholder], List[Concern], List[Capability], List[View], List[ServiceLevel], List[Risk], List[GlossaryTerm], List[Issue]]:
     loaded, load_issues = load_spec(spec_dir)
     issues: List[Issue] = list(load_issues)
 
@@ -1000,16 +1133,18 @@ def build_all(spec_dir: Path) -> Tuple[List[Stakeholder], List[Concern], List[Ca
     capabilities = parse_capabilities(loaded.get("capabilities", {}), issues)
     service_levels = parse_service_levels(loaded.get("service_levels", {}), issues)
     risks = parse_risks(loaded.get("risks", {}), issues)
+    views = parse_views(loaded.get("views", {}), issues)
+    glossary = parse_glossary(loaded.get("glossary", {}), issues)
 
-    issues.extend(analyze(stakeholders, concerns, capabilities, service_levels, risks))
+    issues.extend(analyze(stakeholders, concerns, capabilities, service_levels, risks, views))
     issues.sort(key=lambda i: (SEVERITY_ORDER.get(i.severity, 99), i.code, i.location, i.message))
 
-    return stakeholders, concerns, capabilities, service_levels, risks, issues
+    return stakeholders, concerns, capabilities, views, service_levels, risks, glossary, issues
 
 
 def cmd_validate(args: argparse.Namespace) -> int:
     spec_dir = Path(args.spec_dir)
-    _, _, _, _, _, issues = build_all(spec_dir)
+    _, _, _, _, _, _, _, issues = build_all(spec_dir)
 
     report = {
         "generated_at": now_iso(),
@@ -1033,7 +1168,7 @@ def cmd_validate(args: argparse.Namespace) -> int:
 
 def cmd_build(args: argparse.Namespace) -> int:
     spec_dir = Path(args.spec_dir)
-    stakeholders, concerns, capabilities, service_levels, risks, issues = build_all(spec_dir)
+    stakeholders, concerns, capabilities, views, service_levels, risks, glossary, issues = build_all(spec_dir)
 
     summary = summarize_issues(issues)
     report = {
@@ -1058,13 +1193,14 @@ def cmd_build(args: argparse.Namespace) -> int:
         "date": args.date or dt.date.today().isoformat(),
         "status": args.status,
         "scope": args.scope,
-        "glossary": [],
+        "glossary": [{"name": g.name, "description": g.description} for g in glossary],
     }
 
     ad_text = render_ad(
         stakeholders=stakeholders,
         concerns_src=concerns,
         capabilities=capabilities,
+        views_src=views,
         service_levels=service_levels,
         risks_src=risks,
         issues=issues,
