@@ -12,15 +12,13 @@ class BuildService:
         self.output_dir = output_dir
         self.specs_dir = specs_dir
 
-    def get_output_path(self, architecture_id: str, output_format: str) -> Path:
-        fmt = output_format.lower()
-        extension = "md" if fmt == "md" else "docx"
-        return self.output_dir / f"AD_{architecture_id}.{extension}"
+    def get_output_path(self, architecture_id: str) -> Path:
+        return self.output_dir / f"AD_{architecture_id}.md"
 
-    def build(self, architecture_id: str, output_format: str = "md") -> ProcResult:
+    def build(self, architecture_id: str) -> ProcResult:
         self.output_dir.mkdir(parents=True, exist_ok=True)
         spec_path = self.specs_dir if architecture_id == "_root" else (self.specs_dir / architecture_id)
-        output_file = self.get_output_path(architecture_id, output_format)
+        output_file = self.get_output_path(architecture_id)
 
         cmd = [
             "python3",
@@ -29,7 +27,5 @@ class BuildService:
             str(spec_path),
             "--out",
             str(output_file),
-            "--format",
-            output_format.lower(),
         ]
         return run_command(cmd, cwd=self.repo_root)

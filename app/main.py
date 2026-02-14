@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -116,17 +116,14 @@ def validate_architecture(architecture_id: str) -> ValidationResponse:
 @app.post("/architectures/{architecture_id}/build", response_model=CommandResult)
 def build_architecture(architecture_id: str, request: BuildRequest) -> CommandResult:
     target_id = architecture_id if architecture_id != "_root" else "_root"
-    result = build_service.build(target_id, output_format=request.output_format)
+    result = build_service.build(target_id)
     return to_command_result(result)
 
 
 @app.get("/architectures/{architecture_id}/build/download")
-def build_and_download_architecture(
-    architecture_id: str,
-    output_format: str = Query(default="md", pattern="^(md|docx)$"),
-) -> FileResponse:
+def build_and_download_architecture(architecture_id: str) -> FileResponse:
     target_id = architecture_id if architecture_id != "_root" else "_root"
-    result = build_service.build(target_id, output_format=output_format)
+    result = build_service.build(target_id)
     if not result.ok:
         raise HTTPException(status_code=500, detail={
             "message": "Build failed",
@@ -135,12 +132,11 @@ def build_and_download_architecture(
             "returncode": result.returncode,
         })
 
-    output_path = build_service.get_output_path(target_id, output_format)
+    output_path = build_service.get_output_path(target_id)
     if not output_path.exists():
         raise HTTPException(status_code=500, detail=f"Build succeeded but file was not found: {output_path}")
 
-    media_type = "text/markdown" if output_format == "md" else "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    return FileResponse(path=output_path, media_type=media_type, filename=output_path.name)
+    return FileResponse(path=output_path, media_type="text/markdown", filename=output_path.name)
 
 
 @app.get("/git/branches", response_model=CommandResult)
