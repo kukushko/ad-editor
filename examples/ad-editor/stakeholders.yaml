@@ -1,0 +1,20 @@
+stakeholders:
+  - id: STK-ARCH
+    name: Architecture Team
+    description: Primary users who curate architecture content, maintain traceability, and publish AD artifacts.
+
+  - id: STK-LEAD
+    name: Chief / Lead Architect
+    description: Approves architecture decisions, validates scope and ensures AD consistency.
+
+  - id: STK-DEV
+    name: Platform Engineering Team
+    description: Builds and supports the AD Editor application and automation pipeline.
+
+  - id: STK-SEC
+    name: Security & Compliance
+    description: Reviews risk controls, auditability and handling of sensitive architecture data.
+
+  - id: STK-OPS
+    name: Operations / SRE
+    description: Operates local deployments and maintains reliability of tooling and storage.

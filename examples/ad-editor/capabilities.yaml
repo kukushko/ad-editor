@@ -1,0 +1,36 @@
+capabilities:
+  - id: CAP-001
+    name: Metadata-driven local UI editor
+    description: Split-view web UI to browse entities, search rows and edit data via guided forms.
+    addresses_concerns: [C-001, C-004]
+    constraints:
+      frontend_runtime: browser_local
+      architecture_scale: "<= 10 active editors"
+    tags: [Business, Operational]
+
+  - id: CAP-002
+    name: Schema and cross-reference validation
+    description: Validate YAML structure and links between concerns, risks, views and decisions.
+    addresses_concerns: [C-002, C-003]
+    constraints:
+      validation_model: pydantic
+      execution_mode: local
+    tags: [Operational]
+
+  - id: CAP-003
+    name: Deterministic AD document build
+    description: Generate consistent Markdown AD output from YAML repository content.
+    addresses_concerns: [C-001, C-003]
+    constraints:
+      output_format: markdown
+      renderer: tools/adtool.py
+    tags: [Business, Operational]
+
+  - id: CAP-004
+    name: Architecture knowledge model
+    description: Support glossary, stakeholders, concerns, views, risks and decisions with links.
+    addresses_concerns: [C-002, C-004]
+    constraints:
+      standards_reference: ISO42010_MODAF
+      file_storage: yaml_git
+    tags: [Business]
