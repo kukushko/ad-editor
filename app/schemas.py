@@ -33,7 +33,7 @@ class GitPushRequest(BaseModel):
 
 class BuildRequest(BaseModel):
     architecture_id: str
-    output_format: str = "md"
+    output_format: str = "md"  # supported: md, docx
 
 
 class CommandResult(BaseModel):

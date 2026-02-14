@@ -24,6 +24,10 @@ const el = {
   cancelBtn: document.getElementById('cancelBtn'),
   newRowBtn: document.getElementById('newRowBtn'),
   deleteRowBtn: document.getElementById('deleteRowBtn'),
+  buildToggleBtn: document.getElementById('buildToggleBtn'),
+  buildMenu: document.getElementById('buildMenu'),
+  buildMdBtn: document.getElementById('buildMdBtn'),
+  buildDocxBtn: document.getElementById('buildDocxBtn'),
 };
 
 async function apiGet(url) {
@@ -40,6 +44,20 @@ async function apiPut(url, data) {
   });
   if (!r.ok) throw new Error(await r.text());
   return r.json();
+}
+
+
+function triggerBuildDownload(format) {
+  const url = `/architectures/${state.architectureId}/build/download?output_format=${format}`;
+  window.location.href = url;
+}
+
+function closeBuildMenu() {
+  el.buildMenu.classList.add('hidden');
+}
+
+function toggleBuildMenu() {
+  el.buildMenu.classList.toggle('hidden');
 }
 
 function keyForHistory() {
@@ -374,12 +392,32 @@ function updateReadonlyMode() {
 }
 
 function bindEvents() {
+  el.buildToggleBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleBuildMenu();
+  });
+
+  el.buildMdBtn.addEventListener('click', () => {
+    closeBuildMenu();
+    triggerBuildDownload('md');
+  });
+
+  el.buildDocxBtn.addEventListener('click', () => {
+    closeBuildMenu();
+    triggerBuildDownload('docx');
+  });
+
+  document.addEventListener('click', (event) => {
+    if (!event.target.closest('.build-dropdown')) closeBuildMenu();
+  });
+
   el.architectureSelect.addEventListener('change', async (e) => {
     if (!confirmDiscardIfDirty()) {
       e.target.value = state.architectureId;
       return;
     }
     state.architectureId = e.target.value;
+    closeBuildMenu();
     updateReadonlyMode();
     await loadRows();
   });

@@ -5,13 +5,14 @@ AD Editor is a **local-first web application** for architecture teams. The backe
 ## Current Capabilities
 
 - Built-in local web UI (split view: entity table + row form, with New/Delete/Save/Cancel actions).
+- Top-bar Build menu with `Build MD` and `Build Docx` download actions.
 - Workspace selector by architecture ID.
 - Client-side search (AND semantics over visible columns), sorting, and search history in local storage.
 - Metadata-driven table/form rendering from server (`/editor/metadata`).
 - YAML-based architecture data storage.
 - API for reading and writing AD entities.
 - Validation API for schema and cross-reference checks.
-- Build trigger for `tools/adtool.py`.
+- Build trigger and direct document download for `tools/adtool.py` outputs (MD/DOCX).
 - Git endpoints (kept for backend completeness; UI Git panel can be enabled later).
 
 ## Quick Start
@@ -44,6 +45,7 @@ Environment variables:
 - `PUT /architectures/{id}/spec/{entity}`
 - `POST /architectures/{id}/validate`
 - `POST /architectures/{id}/build`
+- `GET /architectures/{id}/build/download?output_format=md|docx`
 - `GET /git/branches`
 - `POST /git/checkout`
 - `POST /git/branch`

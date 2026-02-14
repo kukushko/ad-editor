@@ -12,6 +12,13 @@
       <div class="topbar-controls">
         <label for="architectureSelect">Workspace</label>
         <select id="architectureSelect"></select>
+        <div class="build-dropdown">
+          <button id="buildToggleBtn" type="button">Build ▾</button>
+          <div id="buildMenu" class="build-menu hidden">
+            <button id="buildMdBtn" type="button">Build MD</button>
+            <button id="buildDocxBtn" type="button">Build Docx</button>
+          </div>
+        </div>
         <span id="readonlyBadge" class="badge hidden">Read-only (_root)</span>
       </div>
     </header>

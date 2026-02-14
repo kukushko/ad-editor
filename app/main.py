@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -32,7 +32,7 @@ git_service = GitService(settings.repo_root)
 build_service = BuildService(settings.repo_root, settings.adtool_path, settings.output_dir, settings.specs_dir)
 validation_service = ValidationService(settings.specs_dir)
 
-app = FastAPI(title="AD Editor API", version="0.4.0")
+app = FastAPI(title="AD Editor API", version="0.5.0")
 
 static_dir = Path(__file__).resolve().parent / "static"
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
@@ -118,6 +118,29 @@ def build_architecture(architecture_id: str, request: BuildRequest) -> CommandRe
     target_id = architecture_id if architecture_id != "_root" else "_root"
     result = build_service.build(target_id, output_format=request.output_format)
     return to_command_result(result)
+
+
+@app.get("/architectures/{architecture_id}/build/download")
+def build_and_download_architecture(
+    architecture_id: str,
+    output_format: str = Query(default="md", pattern="^(md|docx)$"),
+) -> FileResponse:
+    target_id = architecture_id if architecture_id != "_root" else "_root"
+    result = build_service.build(target_id, output_format=output_format)
+    if not result.ok:
+        raise HTTPException(status_code=500, detail={
+            "message": "Build failed",
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+            "returncode": result.returncode,
+        })
+
+    output_path = build_service.get_output_path(target_id, output_format)
+    if not output_path.exists():
+        raise HTTPException(status_code=500, detail=f"Build succeeded but file was not found: {output_path}")
+
+    media_type = "text/markdown" if output_format == "md" else "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    return FileResponse(path=output_path, media_type=media_type, filename=output_path.name)
 
 
 @app.get("/git/branches", response_model=CommandResult)
