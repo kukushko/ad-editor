@@ -43,6 +43,75 @@ async function apiPut(url, data) {
   return r.json();
 }
 
+function buildNavUrl(navState) {
+  const params = new URLSearchParams();
+  if (navState.architectureId) params.set('arch', navState.architectureId);
+  if (navState.entity) params.set('entity', navState.entity);
+  if (navState.search) params.set('q', navState.search);
+  const query = params.toString();
+  return query ? `${window.location.pathname}?${query}` : window.location.pathname;
+}
+
+function getCurrentNavState() {
+  return {
+    architectureId: state.architectureId,
+    entity: state.entity,
+    search: el.searchInput.value || '',
+  };
+}
+
+function pushNavHistory(reason = 'nav') {
+  const navState = getCurrentNavState();
+  const nextUrl = buildNavUrl(navState);
+  const currentUrl = `${window.location.pathname}${window.location.search}`;
+  if (nextUrl === currentUrl) return;
+  window.history.pushState({ ...navState, reason }, '', nextUrl);
+}
+
+function parseNavStateFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  return {
+    architectureId: params.get('arch') || null,
+    entity: params.get('entity') || null,
+    search: params.get('q') || '',
+  };
+}
+
+async function applyNavState(navState) {
+  if (!confirmDiscardIfDirty()) return false;
+
+  const hasArch = state.architectures.includes(navState.architectureId);
+  const nextArchitectureId = hasArch ? navState.architectureId : state.architectureId;
+
+  const entityOrder = state.metadata.entity_order;
+  const hasEntity = entityOrder.includes(navState.entity);
+  const nextEntity = hasEntity ? navState.entity : state.entity;
+
+  let reloadNeeded = false;
+
+  if (nextArchitectureId !== state.architectureId) {
+    state.architectureId = nextArchitectureId;
+    el.architectureSelect.value = nextArchitectureId;
+    updateReadonlyMode();
+    reloadNeeded = true;
+  }
+
+  if (nextEntity !== state.entity) {
+    state.entity = nextEntity;
+    state.sort = { column: 'id', direction: 'asc' };
+    markEntityActive();
+    reloadNeeded = true;
+  }
+
+  if (reloadNeeded) {
+    await loadRows();
+  }
+
+  el.searchInput.value = navState.search || '';
+  renderTable();
+  return true;
+}
+
 
 function triggerBuildDownload() {
   const url = `/architectures/${state.architectureId}/build/download`;
@@ -176,6 +245,7 @@ async function navigateToReference(refId, targetEntity) {
   saveSearchHistory(refId);
   renderHistory();
   renderTable();
+  pushNavHistory('reference');
 }
 
 function renderCellContent(row, column, tokens) {
@@ -431,6 +501,7 @@ function bindEvents() {
     state.architectureId = e.target.value;
     updateReadonlyMode();
     await loadRows();
+    pushNavHistory('architecture');
   });
 
   el.entityNav.addEventListener('click', async (e) => {
@@ -442,18 +513,21 @@ function bindEvents() {
     el.searchInput.value = '';
     markEntityActive();
     await loadRows();
+    pushNavHistory('entity');
   });
 
   el.searchInput.addEventListener('input', renderTable);
   el.searchInput.addEventListener('change', () => {
     saveSearchHistory(el.searchInput.value);
     renderHistory();
+    pushNavHistory('search');
   });
 
   el.searchHistory.addEventListener('change', () => {
     if (!el.searchHistory.value) return;
     el.searchInput.value = el.searchHistory.value;
     renderTable();
+    pushNavHistory('history');
   });
 
   el.entityTable.addEventListener('click', (e) => {
@@ -545,9 +619,32 @@ async function initialize() {
   state.entity = state.metadata.entity_order[0];
 
   bindEvents();
+
+  const urlState = parseNavStateFromUrl();
+  if (state.architectures.includes(urlState.architectureId)) {
+    state.architectureId = urlState.architectureId;
+    el.architectureSelect.value = state.architectureId;
+  }
+  if (state.metadata.entity_order.includes(urlState.entity)) {
+    state.entity = urlState.entity;
+  }
+
   updateReadonlyMode();
   await loadRows();
   markEntityActive();
+
+  el.searchInput.value = urlState.search || '';
+  renderTable();
+
+  const initialNavState = getCurrentNavState();
+  window.history.replaceState({ ...initialNavState, reason: 'init' }, '', buildNavUrl(initialNavState));
+
+  window.addEventListener('popstate', (event) => {
+    const targetState = event.state || parseNavStateFromUrl();
+    applyNavState(targetState).catch((error) => {
+      alert(`History navigation failed: ${error.message}`);
+    });
+  });
 }
 
 initialize().catch((error) => {
