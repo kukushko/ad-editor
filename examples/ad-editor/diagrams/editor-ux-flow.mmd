@@ -1,0 +1,8 @@
+flowchart LR
+    WS[Select workspace] --> ENT[Choose entity]
+    ENT --> TBL[Filter/sort table]
+    TBL --> EDIT[Open split-view form]
+    EDIT --> SAVE[Save]
+    EDIT --> DEL[Delete]
+    SAVE --> BUILD[Build markdown]
+    DEL --> BUILD

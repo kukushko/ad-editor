@@ -1,0 +1,24 @@
+service_levels:
+  - id: SL-001
+    name: Local build reliability
+    sli_definition: successful build requests / total build requests
+    window: monthly
+    exclusions: local machine power/network outages
+    target_slo: ">= 98%"
+    contractual_sla: n/a
+
+  - id: SL-002
+    name: Link integrity quality
+    sli_definition: entities with valid references / total entities requiring links
+    window: monthly
+    exclusions: draft-only branches not yet reviewed
+    target_slo: ">= 95%"
+    contractual_sla: n/a
+
+  - id: SL-003
+    name: Form usability outcome
+    sli_definition: forms completed without external documentation / total forms completed
+    window: monthly
+    exclusions: onboarding sessions
+    target_slo: ">= 80%"
+    contractual_sla: n/a

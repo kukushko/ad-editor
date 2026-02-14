@@ -1,0 +1,6 @@
+flowchart TB
+    U[Architect Browser] --> UI[Local UI /static]
+    UI --> API[FastAPI app/main.py]
+    API --> SPEC[YAML specs examples/ad-editor/*.yaml]
+    API --> TOOL[tools/adtool.py]
+    TOOL --> MD[AD_<id>.md]
