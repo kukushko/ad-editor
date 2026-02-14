@@ -45,8 +45,8 @@ from jinja2 import Environment, BaseLoader, StrictUndefined
 # Constants / helpers
 # ---------------------------
 
-TODO_HTML = '<span style="color:red"><b><TODO></b></span>'
-TODO_CONFLICT_HTML = '<span style="color:red"><b><TODO-CONFLICT></b></span>'
+TODO_HTML = '`TODO`'
+TODO_CONFLICT_HTML = '`TODO-CONFLICT`'
 
 DEFAULT_FILES = {
     "stakeholders": ("stakeholders.yaml", "stakeholders.yml"),
@@ -69,7 +69,7 @@ def todo(label: str = "TODO") -> str:
         return TODO_HTML
     if label.upper().startswith("TODO-CONFLICT"):
         return TODO_CONFLICT_HTML
-    return f'<span style="color:red"><b><{label}></b></span>'
+    return f'`TODO:{label}`'
 
 
 def now_iso() -> str:
