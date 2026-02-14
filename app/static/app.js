@@ -142,6 +142,42 @@ function isUrl(value) {
   return /^https?:\/\//i.test(value || '');
 }
 
+function isReferenceId(value) {
+  return /^[A-Z][A-Z0-9]*-[A-Za-z0-9._-]+$/.test((value || '').trim());
+}
+
+function resolveEntityByReferenceId(value) {
+  const normalized = String(value || '').trim().toUpperCase();
+  const prefix = normalized.split('-', 1)[0];
+  const entries = Object.entries(state.metadata.entities);
+  const match = entries.find(([, meta]) => meta.id_prefix.toUpperCase() === prefix);
+  return match ? match[0] : null;
+}
+
+function renderReferenceLink(value, tokens) {
+  const text = String(value || '');
+  const targetEntity = resolveEntityByReferenceId(text);
+  if (!targetEntity) return highlight(text, tokens);
+  return `<button type="button" class="ref-link" data-ref-id="${text}" data-ref-entity="${targetEntity}">${highlight(text, tokens)}</button>`;
+}
+
+async function navigateToReference(refId, targetEntity) {
+  if (!refId || !targetEntity) return;
+  if (!confirmDiscardIfDirty()) return;
+
+  if (state.entity !== targetEntity) {
+    state.entity = targetEntity;
+    state.sort = { column: 'id', direction: 'asc' };
+    markEntityActive();
+    await loadRows();
+  }
+
+  el.searchInput.value = refId;
+  saveSearchHistory(refId);
+  renderHistory();
+  renderTable();
+}
+
 function renderCellContent(row, column, tokens) {
   const value = row[column];
   const rowId = row.id || 'row';
@@ -154,6 +190,7 @@ function renderCellContent(row, column, tokens) {
       .map((item) => {
         const text = String(item ?? '');
         if (isUrl(text)) return `<a href="${text}" target="_blank" rel="noreferrer">${highlight(text, tokens)}</a>`;
+        if (isReferenceId(text)) return renderReferenceLink(text, tokens);
         return highlight(text, tokens);
       })
       .map((item) => `<div>${item}</div>`)
@@ -164,6 +201,7 @@ function renderCellContent(row, column, tokens) {
 
   const text = stringifyVisibleCell(row, column);
   if (isUrl(text)) return `<a href="${text}" target="_blank" rel="noreferrer">${highlight(text, tokens)}</a>`;
+  if (isReferenceId(text)) return renderReferenceLink(text, tokens);
   return highlight(text, tokens);
 }
 
@@ -435,6 +473,14 @@ function bindEvents() {
       if (state.expandedCells.has(key)) state.expandedCells.delete(key);
       else state.expandedCells.add(key);
       renderTable();
+      return;
+    }
+
+    const refBtn = e.target.closest('[data-ref-id][data-ref-entity]');
+    if (refBtn) {
+      navigateToReference(refBtn.dataset.refId, refBtn.dataset.refEntity).catch((error) => {
+        alert(`Navigation failed: ${error.message}`);
+      });
       return;
     }
 

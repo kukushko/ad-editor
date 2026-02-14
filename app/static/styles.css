@@ -67,3 +67,19 @@ button.secondary { background: #fff; }
 .small-btn { font-size: 11px; padding: 2px 6px; }
 
 
+
+
+.ref-link {
+  border: none;
+  background: transparent;
+  color: #2563eb;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
+  text-align: left;
+}
+
+.ref-link:hover {
+  color: #1d4ed8;
+}

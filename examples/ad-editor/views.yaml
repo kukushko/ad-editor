@@ -6,7 +6,7 @@ views:
     stakeholders: [STK-ARCH, STK-LEAD]
     concerns: [C-002]
     diagram_links:
-      - https://github.com/kukushko/ad-editor/blob/main/examples/ad-editor/diagrams/entity-link-model.svg?raw=1
+      - https://github.com/<TODO:org>/<TODO:repo>/blob/main/examples/ad-editor/diagrams/entity-link-model.svg?raw=1
 
   - id: VW-002
     name: Deployment/runtime view
@@ -15,7 +15,7 @@ views:
     stakeholders: [STK-DEV, STK-OPS]
     concerns: [C-003]
     diagram_links:
-      - https://github.com/kukushko/ad-editor/blob/main/examples/ad-editor/diagrams/local-runtime-components.svg?raw=1
+      - https://github.com/<TODO:org>/<TODO:repo>/blob/main/examples/ad-editor/diagrams/local-runtime-components.svg?raw=1
 
   - id: VW-003
     name: UX workflow view
@@ -24,4 +24,4 @@ views:
     stakeholders: [STK-ARCH]
     concerns: [C-004]
     diagram_links:
-      - https://github.com/kukushko/ad-editor/blob/main/examples/ad-editor/diagrams/editor-ux-flow.svg?raw=1
+      - https://github.com/<TODO:org>/<TODO:repo>/blob/main/examples/ad-editor/diagrams/editor-ux-flow.svg?raw=1
