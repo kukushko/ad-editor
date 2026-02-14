@@ -1,0 +1,33 @@
+concerns:
+  - id: C-001
+    name: Correctness
+    description: Risk metrics must be computed correctly and reproducibly.
+    stakeholders: [STK-USER, STK-AUD]
+    tags: [Business]
+    measurement:
+      sli: ""
+      slo: ""
+      sla: ""
+      service_level_id: ""
+
+  - id: C-003
+    name: Timeliness
+    description: Results must be ready within the agreed time window.
+    stakeholders: [STK-USER, STK-OPS]
+    tags: [Business, Operational]
+    measurement:
+      sli: time_to_result
+      slo: ""                # will show <TODO> in AD
+      sla: ""                # will show <TODO> in AD
+      service_level_id: SL-001
+
+  - id: C-004
+    name: Observability
+    description: The pipeline ingest -> calc -> publish must be observable and diagnosable.
+    stakeholders: [STK-OPS, STK-DEV]
+    tags: [Operational]
+    measurement:
+      sli: ""
+      slo: ""
+      sla: ""
+      service_level_id: ""

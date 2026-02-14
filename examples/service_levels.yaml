@@ -1,0 +1,8 @@
+service_levels:
+  - id: SL-001
+    name: Time to result
+    sli_definition: "timestamp(result_published) - timestamp(feed_received)"
+    window: "monthly"
+    exclusions: "<TODO>"
+    target_slo: "<TODO>"
+    contractual_sla: "<TODO>"

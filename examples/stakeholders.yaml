@@ -1,0 +1,16 @@
+stakeholders:
+  - id: STK-USER
+    name: Business User / Risk Analyst
+    description: Uses risk calculation results
+
+  - id: STK-AUD
+    name: Auditor / Compliance
+    description: Needs lineage, immutable logs, access control evidence
+
+  - id: STK-OPS
+    name: Operations / SRE
+    description: Runs the system in production, incident response
+
+  - id: STK-DEV
+    name: Dev Team
+    description: Builds and deploys the system

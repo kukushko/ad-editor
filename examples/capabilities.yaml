@@ -1,0 +1,33 @@
+capabilities:
+  - id: CAP-01
+    name: Ingest feeds X/Y
+    description: Receive and validate feeds from sources X and Y.
+    addresses_concerns: [C-003]
+    constraints:
+      formats: "<TODO>"
+      max_volume: "<TODO>"
+    tags: [Business]
+
+  - id: CAP-03
+    name: Risk calculation
+    description: Calculate risk metrics using normalized feeds X/Y.
+    addresses_concerns: [C-001, C-003]
+    constraints:
+      risk_model: "<TODO>"
+      versioning: "<TODO>"
+    tags: [Business]
+
+  - id: CAP-05
+    name: Observability & diagnostics
+    description: Metrics/logs/traces/alerts for the end-to-end pipeline.
+    addresses_concerns: [C-003, C-004]
+    constraints:
+      retention: "<TODO>"
+    tags: [Operational]
+
+  - id: CAP-06
+    name: Deployability
+    description: Safe deployments, rollback, migrations with minimal downtime.
+    addresses_concerns: []
+    constraints: {}
+    tags: [Operational]

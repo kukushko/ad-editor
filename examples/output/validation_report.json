@@ -1,0 +1,29 @@
+{
+  "generated_at": "2026-02-14T12:24:31.035262+00:00",
+  "spec_dir": "D:\\Work\\ad-editor\\examples",
+  "summary": {
+    "ERROR": 0,
+    "WARN": 3,
+    "INFO": 0
+  },
+  "issues": [
+    {
+      "severity": "WARN",
+      "code": "GAP",
+      "location": "capabilities:CAP-06",
+      "message": "Capability is not linked to any concerns"
+    },
+    {
+      "severity": "WARN",
+      "code": "GAP",
+      "location": "capabilities[3].addresses_concerns",
+      "message": "Capability does not address any concerns"
+    },
+    {
+      "severity": "WARN",
+      "code": "MISSING_MEASUREMENT",
+      "location": "concerns:C-004.measurement",
+      "message": "Operational concern is missing measurement.sli or measurement.service_level_id"
+    }
+  ]
+}

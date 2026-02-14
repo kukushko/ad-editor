@@ -1,0 +1,24 @@
+risks:
+  - id: R-001
+    title: Feed X delayed or incomplete
+    description: Source X may publish late or with missing fields, delaying downstream risk results.
+    type: Operational/Data
+    status: Open
+    owner: STK-OPS
+    affected_concerns: [C-003, C-004]
+    affected_capabilities: [CAP-01, CAP-03, CAP-05]
+    threatened_service_levels: [SL-001]
+    linked_views: ["AV-1", "OV-2", "SV-1"]   # recommend also AcV-2 if this is schedule/programmatic
+    mitigation: "Implement buffering/retry; alert on lag; define quarantine rules. Use CAP-05 alerts."
+
+  - id: R-002
+    title: Schedule risk for MVP delivery
+    description: Dependencies on integration contract changes may push the delivery timeline.
+    type: Programmatic/Schedule
+    status: Mitigating
+    owner: STK-DEV
+    affected_concerns: [C-003]
+    affected_capabilities: [CAP-01, CAP-03, CAP-06]
+    threatened_service_levels: [SL-001]
+    linked_views: ["AV-1", "AcV-2:M3", "StV-3"]
+    mitigation: "Freeze interface version; add contract tests; stage rollout; align milestones with AcV-2."

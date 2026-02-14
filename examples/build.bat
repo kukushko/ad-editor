@@ -1,0 +1,1 @@
+python ../tools/adtool.py build . --out ./output/AD_codified.md
