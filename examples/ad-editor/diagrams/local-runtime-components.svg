@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="440" viewBox="0 0 1100 440">
+  <style>
+    .box { fill:#f7fafc; stroke:#2f855a; stroke-width:2; rx:10; ry:10; }
+    .title { font: 600 18px Arial, sans-serif; fill:#22543d; }
+    .label { font: 14px Arial, sans-serif; fill:#22543d; }
+    .arrow { stroke:#2d3748; stroke-width:2; marker-end:url(#arrow); }
+  </style>
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <polygon points="0,0 8,4 0,8" fill="#2d3748" />
+    </marker>
+  </defs>
+
+  <text x="30" y="34" class="title">AD Editor — Local Runtime Components</text>
+
+  <rect class="box" x="40" y="90" width="180" height="70"/><text x="62" y="132" class="label">Architect Browser</text>
+  <rect class="box" x="280" y="90" width="180" height="70"/><text x="334" y="132" class="label">UI (/static)</text>
+  <rect class="box" x="520" y="90" width="200" height="70"/><text x="554" y="132" class="label">FastAPI Backend</text>
+  <rect class="box" x="780" y="60" width="250" height="70"/><text x="822" y="102" class="label">YAML Specs (Git working copy)</text>
+  <rect class="box" x="780" y="160" width="250" height="70"/><text x="850" y="202" class="label">tools/adtool.py</text>
+  <rect class="box" x="780" y="260" width="250" height="70"/><text x="835" y="302" class="label">Markdown Output</text>
+
+  <line class="arrow" x1="220" y1="125" x2="280" y2="125"/>
+  <line class="arrow" x1="460" y1="125" x2="520" y2="125"/>
+  <line class="arrow" x1="720" y1="110" x2="780" y2="95"/>
+  <line class="arrow" x1="720" y1="130" x2="780" y2="195"/>
+  <line class="arrow" x1="905" y1="230" x2="905" y2="260"/>
+
+  <text x="30" y="390" class="label">Build button triggers backend endpoint, which invokes adtool.py and returns generated .md for download.</text>
+</svg>
