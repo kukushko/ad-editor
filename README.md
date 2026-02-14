@@ -53,13 +53,17 @@ uvicorn app.main:app --reload --port 8080
 - `capabilities.yaml`
 - `service_levels.yaml` (optional)
 - `risks.yaml` (optional)
+- `decisions.yaml` (optional)
+- `views.yaml` (optional, diagram links as image URLs)
+- `glossary.yaml` (optional)
 
 Проверяются:
 
 - типы и обязательные поля (Pydantic-модели),
 - запрет лишних полей на уровне объектов,
 - уникальность `id` внутри каждой коллекции,
-- ссылочная целостность между сущностями (stakeholders/concerns/capabilities/service_levels/risks).
+- ссылочная целостность между сущностями (stakeholders/concerns/capabilities/service_levels/risks/decisions/views),
+- валидация ссылок на диаграммы во `views` (только HTTP/HTTPS image links).
 
 ## Какие вводные нужны для production-версии
 
