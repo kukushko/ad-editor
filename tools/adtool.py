@@ -23,7 +23,8 @@ Dependencies:
 
 Usage:
   python adtool.py validate ad/spec --report ad/output/validation_report.json
-  python adtool.py build ad/spec --out ad/output/AD_codified.md
+  python adtool.py build ad/spec --out ad/output/AD_codified.md --format md
+  python adtool.py build ad/spec --out ad/output/AD_codified.docx --format docx
 """
 
 from __future__ import annotations
@@ -44,8 +45,8 @@ from jinja2 import Environment, BaseLoader, StrictUndefined
 # Constants / helpers
 # ---------------------------
 
-TODO_HTML = '<span style="color:red"><b><TODO></b></span>'
-TODO_CONFLICT_HTML = '<span style="color:red"><b><TODO-CONFLICT></b></span>'
+TODO_HTML = '`TODO`'
+TODO_CONFLICT_HTML = '`TODO-CONFLICT`'
 
 DEFAULT_FILES = {
     "stakeholders": ("stakeholders.yaml", "stakeholders.yml"),
@@ -68,7 +69,7 @@ def todo(label: str = "TODO") -> str:
         return TODO_HTML
     if label.upper().startswith("TODO-CONFLICT"):
         return TODO_CONFLICT_HTML
-    return f'<span style="color:red"><b><{label}></b></span>'
+    return f'`TODO:{label}`'
 
 
 def now_iso() -> str:
@@ -1208,7 +1209,17 @@ def cmd_build(args: argparse.Namespace) -> int:
         template_text=template_text,
     )
 
-    write_text(out_path, ad_text)
+    out_format = (args.format or "").strip().lower()
+    if not out_format:
+        out_format = "docx" if out_path.suffix.lower() == ".docx" else "md"
+
+    if out_format not in ("md", "docx"):
+        raise ValueError(f"Unsupported format: {out_format}")
+
+    if out_format == "docx":
+        markdown_to_docx(ad_text, out_path)
+    else:
+        write_text(out_path, ad_text)
     write_text(gaps_path, issues_to_gaps_md(issues))
     write_json(report_path, report)
 
@@ -1236,10 +1247,11 @@ def make_parser() -> argparse.ArgumentParser:
 
     pb = sub.add_parser("build", help="Validate + analyze + render AD (codified)")
     pb.add_argument("spec_dir", help="Directory with spec YAML files")
-    pb.add_argument("--out", required=True, help="Output AD markdown path (e.g., ad/output/AD_codified.md)")
+    pb.add_argument("--out", required=True, help="Output AD path (e.g., ad/output/AD_codified.md or .docx)")
     pb.add_argument("--gaps", help="Output gaps markdown path (default: alongside --out as gaps.md)")
     pb.add_argument("--report", help="Output report json path (default: alongside --out as validation_report.json)")
     pb.add_argument("--template", help="Optional Jinja2 markdown template path (overrides built-in template)")
+    pb.add_argument("--format", choices=["md", "docx"], default="", help="Output format (default: inferred from --out suffix)")
     pb.add_argument("--fail-on-warn", action="store_true", help="Exit non-zero if WARN exists")
 
     pb.add_argument("--system-name", default="RCS")
