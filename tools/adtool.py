@@ -980,6 +980,8 @@ def issues_to_gaps_md(issues: List[Issue]) -> str:
     return "\n".join(lines)
 
 
+
+
 def summarize_issues(issues: List[Issue]) -> Dict[str, int]:
     out = {"ERROR": 0, "WARN": 0, "INFO": 0}
     for i in issues:
