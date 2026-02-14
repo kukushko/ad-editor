@@ -21,7 +21,7 @@ class BuildService:
         output_file = self.get_output_path(architecture_id)
 
         cmd = [
-            "python3",
+            "python",
             str(self.adtool_path),
             "build",
             str(spec_path),
