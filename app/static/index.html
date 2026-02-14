@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AD Editor</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <h1>AD Editor</h1>
+      <div class="topbar-controls">
+        <label for="architectureSelect">Workspace</label>
+        <select id="architectureSelect"></select>
+        <span id="readonlyBadge" class="badge hidden">Read-only (_root)</span>
+      </div>
+    </header>
+
+    <main class="layout">
+      <aside class="sidebar">
+        <h2>Entities</h2>
+        <nav id="entityNav" class="entity-nav"></nav>
+      </aside>
+
+      <section class="table-panel">
+        <div class="panel-header">
+          <h2 id="entityTitle">Entity</h2>
+          <div class="header-actions">
+            <button id="newRowBtn" type="button">New</button>
+            <button id="deleteRowBtn" type="button" class="secondary" disabled>Delete</button>
+          </div>
+        </div>
+        <div class="search-row">
+          <input id="searchInput" type="text" placeholder="Search visible columns with AND logic (space-separated tokens)" />
+          <select id="searchHistory"></select>
+        </div>
+        <div class="table-wrap">
+          <table id="entityTable">
+            <thead></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="form-panel">
+        <h2>Row Editor</h2>
+        <form id="rowForm"></form>
+        <div class="form-actions">
+          <button id="saveBtn" type="button">Save</button>
+          <button id="cancelBtn" type="button" class="secondary">Cancel</button>
+        </div>
+      </section>
+    </main>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>
