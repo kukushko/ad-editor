@@ -8,7 +8,6 @@ const state = {
   draft: null,
   dirty: false,
   sort: { column: 'id', direction: 'asc' },
-  expandedCells: new Set(),
 };
 
 const el = {
@@ -203,10 +202,6 @@ function highlight(text, tokens) {
   return result;
 }
 
-function cellKey(rowId, column) {
-  return `${rowId}::${column}`;
-}
-
 function isUrl(value) {
   return /^https?:\/\//i.test(value || '');
 }
@@ -250,13 +245,9 @@ async function navigateToReference(refId, targetEntity) {
 
 function renderCellContent(row, column, tokens) {
   const value = row[column];
-  const rowId = row.id || 'row';
 
   if (Array.isArray(value)) {
-    const key = cellKey(rowId, column);
-    const expanded = state.expandedCells.has(key);
-    const list = expanded ? value : value.slice(0, 1);
-    const listHtml = list
+    const listHtml = value
       .map((item) => {
         const text = String(item ?? '');
         if (isUrl(text)) return `<a href="${text}" target="_blank" rel="noreferrer">${highlight(text, tokens)}</a>`;
@@ -265,8 +256,7 @@ function renderCellContent(row, column, tokens) {
       })
       .map((item) => `<div>${item}</div>`)
       .join('');
-    const btn = value.length > 1 ? `<button type="button" class="small-btn" data-expand="${key}">${expanded ? 'Less' : 'More'}</button>` : '';
-    return `<div class="link-list">${listHtml}${btn}</div>`;
+    return `<div class="link-list">${listHtml}</div>`;
   }
 
   const text = stringifyVisibleCell(row, column);
@@ -418,7 +408,6 @@ async function loadRows() {
   state.rows = state.payload[meta.collection_key] || [];
   state.draft = null;
   state.dirty = false;
-  state.expandedCells.clear();
   renderTable();
   renderForm();
   renderHistory();
@@ -537,15 +526,6 @@ function bindEvents() {
       state.sort = state.sort.column === column
         ? { column, direction: state.sort.direction === 'asc' ? 'desc' : 'asc' }
         : { column, direction: 'asc' };
-      renderTable();
-      return;
-    }
-
-    const expandBtn = e.target.closest('[data-expand]');
-    if (expandBtn) {
-      const key = expandBtn.dataset.expand;
-      if (state.expandedCells.has(key)) state.expandedCells.delete(key);
-      else state.expandedCells.add(key);
       renderTable();
       return;
     }

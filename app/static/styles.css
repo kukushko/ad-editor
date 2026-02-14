@@ -64,11 +64,6 @@ button.secondary { background: #fff; }
 .hidden { display: none; }
 
 .link-list { display: flex; flex-direction: column; gap: 4px; }
-.small-btn { font-size: 11px; padding: 2px 6px; }
-
-
-
-
 .ref-link {
   border: none;
   background: transparent;
