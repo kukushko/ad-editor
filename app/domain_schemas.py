@@ -20,7 +20,7 @@ class StakeholderModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     id: str = Field(min_length=1)
-    name: str = Field(min_length=1)
+    name: str = ""
     description: str = ""
 
 
@@ -43,11 +43,11 @@ class ConcernModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     id: str = Field(min_length=1)
-    name: str = Field(min_length=1)
-    description: str = Field(min_length=1)
+    name: str = ""
+    description: str = ""
     stakeholders: List[str] = Field(default_factory=list)
     tags: List[str] = Field(default_factory=list)
-    measurement: ConcernMeasurementModel
+    measurement: ConcernMeasurementModel = Field(default_factory=ConcernMeasurementModel)
 
 
 class ConcernsFileModel(BaseModel):
@@ -60,8 +60,8 @@ class CapabilityModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     id: str = Field(min_length=1)
-    name: str = Field(min_length=1)
-    description: str = Field(min_length=1)
+    name: str = ""
+    description: str = ""
     addresses_concerns: List[str] = Field(default_factory=list)
     constraints: Dict[str, str] = Field(default_factory=dict)
     tags: List[str] = Field(default_factory=list)
@@ -77,9 +77,9 @@ class ServiceLevelModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     id: str = Field(min_length=1)
-    name: str = Field(min_length=1)
-    sli_definition: str = Field(min_length=1)
-    window: str = Field(min_length=1)
+    name: str = ""
+    sli_definition: str = ""
+    window: str = ""
     exclusions: str = ""
     target_slo: str = ""
     contractual_sla: str = ""
@@ -95,16 +95,16 @@ class RiskModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     id: str = Field(min_length=1)
-    title: str = Field(min_length=1)
-    description: str = Field(min_length=1)
-    type: str = Field(min_length=1)
-    status: str = Field(min_length=1)
-    owner: str = Field(min_length=1)
+    title: str = ""
+    description: str = ""
+    type: str = ""
+    status: str = ""
+    owner: str = ""
     affected_concerns: List[str] = Field(default_factory=list)
     affected_capabilities: List[str] = Field(default_factory=list)
     threatened_service_levels: List[str] = Field(default_factory=list)
     linked_views: List[str] = Field(default_factory=list)
-    mitigation: str = Field(min_length=1)
+    mitigation: str = ""
 
     @field_validator("linked_views")
     @classmethod
@@ -124,11 +124,11 @@ class DecisionModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     id: str = Field(min_length=1)
-    title: str = Field(min_length=1)
-    status: str = Field(min_length=1)
+    title: str = ""
+    status: str = ""
     date: str = ""
-    decision: str = Field(min_length=1)
-    rationale: str = Field(min_length=1)
+    decision: str = ""
+    rationale: str = ""
     alternatives_considered: List[str] = Field(default_factory=list)
     addresses_concerns: List[str] = Field(default_factory=list)
     affected_capabilities: List[str] = Field(default_factory=list)
@@ -146,8 +146,8 @@ class ViewModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     id: str = Field(min_length=1)
-    name: str = Field(min_length=1)
-    viewpoint: str = Field(min_length=1)
+    name: str = ""
+    viewpoint: str = ""
     description: str = ""
     stakeholders: List[str] = Field(default_factory=list)
     concerns: List[str] = Field(default_factory=list)
@@ -158,7 +158,9 @@ class ViewModel(BaseModel):
     def validate_diagram_links(cls, value: List[str]) -> List[str]:
         invalid = [item for item in value if not _is_image_url(item)]
         if invalid:
-            raise ValueError("diagram_links must be HTTP/HTTPS links to image files (.png/.jpg/.jpeg/.svg/.webp/.gif)")
+            raise ValueError(
+                "diagram_links must be HTTP/HTTPS links to image files (.png/.jpg/.jpeg/.svg/.webp/.gif)"
+            )
         return value
 
 
@@ -172,8 +174,8 @@ class GlossaryTermModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     id: str = Field(min_length=1)
-    term: str = Field(min_length=1)
-    definition: str = Field(min_length=1)
+    term: str = ""
+    definition: str = ""
     aliases: List[str] = Field(default_factory=list)
     tags: List[str] = Field(default_factory=list)
 

@@ -1,12 +1,18 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from .config import load_settings
+from .editor_config import get_editor_metadata
 from .schemas import (
     ArchitectureListResponse,
     BuildRequest,
     CommandResult,
+    EditorMetadataResponse,
     GitBranchCreateRequest,
     GitCheckoutRequest,
     GitCommitRequest,
@@ -26,7 +32,10 @@ git_service = GitService(settings.repo_root)
 build_service = BuildService(settings.repo_root, settings.adtool_path, settings.output_dir, settings.specs_dir)
 validation_service = ValidationService(settings.specs_dir)
 
-app = FastAPI(title="AD Editor API", version="0.2.0")
+app = FastAPI(title="AD Editor API", version="0.4.0")
+
+static_dir = Path(__file__).resolve().parent / "static"
+app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 
 def to_command_result(result) -> CommandResult:
@@ -39,9 +48,19 @@ def to_command_result(result) -> CommandResult:
     )
 
 
+@app.get("/")
+def home() -> FileResponse:
+    return FileResponse(static_dir / "index.html")
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/editor/metadata", response_model=EditorMetadataResponse)
+def editor_metadata() -> EditorMetadataResponse:
+    return EditorMetadataResponse.model_validate(get_editor_metadata())
 
 
 @app.get("/architectures", response_model=ArchitectureListResponse)
@@ -49,7 +68,6 @@ def list_architectures() -> ArchitectureListResponse:
     architectures = spec_service.list_architectures()
     if architectures:
         return ArchitectureListResponse(architectures=architectures)
-    # backward compatibility for current repository examples/*.yaml
     return ArchitectureListResponse(architectures=["_root"])
 
 

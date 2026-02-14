@@ -55,3 +55,21 @@ class ValidationResponse(BaseModel):
     ok: bool
     architecture_id: str
     issues: List[ValidationIssueResponse] = Field(default_factory=list)
+
+
+class EditorEntityMetadata(BaseModel):
+    entity: str
+    file_name: str
+    collection_key: str
+    id_prefix: str
+    id_width: int
+    columns: List[str]
+    required_fields: List[str]
+    field_help: Dict[str, str] = Field(default_factory=dict)
+
+
+class EditorMetadataResponse(BaseModel):
+    entity_order: List[str]
+    entities: Dict[str, EditorEntityMetadata]
+    enums: Dict[str, List[str]]
+    filter_history_limit: int = 10
