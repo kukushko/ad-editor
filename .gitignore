@@ -1,2 +1,5 @@
 *.pyc
 generated/
+.vscode/
+.idea/
+__pycache__/
