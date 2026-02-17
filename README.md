@@ -1,45 +1,30 @@
 # AD Editor
 
-AD Editor is a local-first web application for architecture teams. The backend runs on a local workstation and edits a local Git working copy with AD YAML files.
-
-## Scope And Trust Boundary
-
-This project is intended for local use (single workstation / trusted local network segment) as a convenient editor for local content.
-
-- No authentication/authorization layer is implemented.
-- Git operations are exposed via API for local workflow convenience.
-- Security hardening for hostile/untrusted multi-tenant deployment is currently out of scope.
+AD Editor is a **local-first web application** for architecture teams. The backend runs on an architect's workstation and edits the local Git working copy that stores AD YAML files.
 
 ## Current Capabilities
 
-- Built-in local web UI (split view: entity table + row form).
+- Built-in local web UI (split view: entity table + row form, with New/Delete/Save/Cancel actions).
+- Top-bar Build button to generate and download the Architecture Document in Markdown.
 - Workspace selector by architecture ID.
-- Entity navigation from server metadata (`/editor/metadata`).
-- CRUD-like editing flow in UI: New, Save, Delete, Cancel.
-- Read-only compatibility mode for `_root` workspace.
-- Client-side search over visible columns with AND semantics.
-- Client-side sorting by table headers.
-- Search history in `localStorage` per architecture + entity.
-- URL-based navigation state (`arch`, `entity`, `q`) and browser history support.
-- Reference-ID links in table cells (navigate to linked entity).
-- Reference tooltip loading from related entities (description as hover title).
-- Build button downloads generated Markdown (`GET /architectures/{id}/build/download`).
+- Client-side search (AND semantics over visible columns), sorting, and search history in local storage.
+- Metadata-driven table/form rendering from server (`/editor/metadata`).
+- YAML-based architecture data storage.
+- API for reading and writing AD entities.
 - Validation API for schema and cross-reference checks.
-- Git endpoints available in backend API (UI panel is not implemented yet).
+- Build trigger and direct Markdown download for `tools/adtool.py` output.
+- Git endpoints (kept for backend completeness; UI Git panel can be enabled later).
 
 ## Quick Start
 
 ```bash
-python -m venv .venv
-. .venv/bin/activate
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8080
 ```
 
-Open:
-
-- UI: `http://127.0.0.1:8080/`
-- OpenAPI docs: `http://127.0.0.1:8080/docs`
+Then open the editor UI at `http://127.0.0.1:8080/` or Swagger docs at `http://127.0.0.1:8080/docs`.
 
 ## Configuration
 
@@ -52,7 +37,7 @@ Environment variables:
 
 ## API Endpoints
 
-- `GET /` - serves local UI.
+- `GET /` (serves local UI)
 - `GET /health`
 - `GET /editor/metadata`
 - `GET /architectures`
@@ -68,11 +53,7 @@ Environment variables:
 - `POST /git/commit`
 - `POST /git/push`
 
-Build API note:
-
-- `POST /architectures/{id}/build` currently accepts `BuildRequest` with `architecture_id` in body for schema compatibility, but build target is resolved from path parameter `{id}`.
-
-## YAML Files Covered By Validation
+## YAML Files Covered by Validation
 
 - `stakeholders.yaml` (required)
 - `concerns.yaml` (required)
@@ -94,20 +75,16 @@ Validation includes:
 
 `GET /editor/metadata` returns:
 
-- entity order,
-- per-entity file + collection mapping,
-- ID generation settings (`id_prefix`, `id_width`),
-- table columns used by UI render/search/sort,
-- enum options for selected fields,
-- required fields (currently `id` only),
-- `field_help` hints for default row drafting,
-- search history limit.
+- entity order (recommended fill-in sequence),
+- table columns per entity (for client-side search/sort over visible columns),
+- server-side enum options for selected fields,
+- required fields per entity (currently only `id`, with an extension point for future rules).
+
 
 ## UI Notes
 
 - ID is read-only in forms.
-- New rows auto-generate ID from metadata (`id_prefix` + sequence).
-- New row defaults are initialized from entity `field_help` text.
-- URL values are rendered as clickable external links.
-- Reference IDs are rendered as clickable in-app navigation links.
-- Build action in UI triggers direct file download endpoint.
+- New rows auto-generate ID using server metadata (`id_prefix` + sequence).
+- New row defaults use entity-specific plain-language guidance text (`field_help`).
+- Diagram links and URL fields are rendered as clickable external links.
+- Long list cells use a More/Less expander button.
