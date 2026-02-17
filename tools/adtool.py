@@ -847,6 +847,7 @@ DEFAULT_TEMPLATE = r"""
 ## 4. Capabilities
 | ID | Name | Description | Addresses Concerns | Constraints (JSON) | Tags |
 |---|---|---|---|---|---|
+{% if capabilities %}
 {% for cap in capabilities -%}
 | {{ cap.id }} | {{ cap.name | replace("|","\\|") }} | {{ cap.description_one_line | replace("|","\\|") }} | {{ cap.concerns_str | replace("|","\\|") }} | {{ cap.constraints_json | replace("|","\\|") }} | {{ cap.tags_str | replace("|","\\|") }} |
 {% endfor %}
