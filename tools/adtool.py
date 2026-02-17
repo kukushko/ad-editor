@@ -829,7 +829,7 @@ DEFAULT_TEMPLATE = r"""
 > Each concern is defined once with a unique ID; categories are represented via tags.
 
 | ID | Name | Description | Stakeholders | Tags | Measurement (SLI / SLO / SLA / SL ref) |
-|---|---|---|---|---|---|
+|---|---|---|---|---|---|---|
 {% for c in concerns -%}
 | {{ c.id }} | {{ c.name | replace("|","\\|") }} | {{ c.description_one_line | replace("|","\\|") }} | {{ c.stakeholders_str | replace("|","\\|") }} | {{ c.tags_str | replace("|","\\|") }} | {{ c.measurement_str | replace("|","\\|") }} |
 {% endfor %}
@@ -867,7 +867,7 @@ DEFAULT_TEMPLATE = r"""
 
 ## 6. Risk Register (AV-1 aligned)
 | Risk ID | Title | Type | Status | Owner (STK) | Affected Concerns | Affected Capabilities | Threatened SL | Linked Views | Mitigation |
-|---|---|---|---|---|---|---|---|---|---|
+|---|---|---|---|---|---|---|---|---|---|---|
 {% if risks %}
 {% for r in risks -%}
 | {{ r.id }} | {{ r.title | replace("|","\\|") }} | {{ r.type | replace("|","\\|") }} | {{ r.status | replace("|","\\|") }} | {{ r.owner_display | replace("|","\\|") }} | {{ r.concerns_str | replace("|","\\|") }} | {{ r.caps_str | replace("|","\\|") }} | {{ r.sls_str | replace("|","\\|") }} | {{ r.views_str | replace("|","\\|") }} | {{ r.mitigation_display | replace("|","\\|") }} |
@@ -881,7 +881,7 @@ DEFAULT_TEMPLATE = r"""
 ## 7. Service Level Catalog
 {% if service_levels %}
 | ID | Name | SLI definition | Window | Exclusions | Target SLO | Contractual SLA |
-|---|---|---|---|---|---|---|
+|---|---|---|---|---|---|---|---|
 {% for sl in service_levels -%}
 | {{ sl.id }} | {{ sl.name | replace("|","\\|") }} | {{ sl.sli_definition_one_line | replace("|","\\|") }} | {{ sl.window | replace("|","\\|") }} | {{ sl.exclusions_one_line | replace("|","\\|") }} | {{ sl.target_slo_display | replace("|","\\|") }} | {{ sl.contractual_sla_display | replace("|","\\|") }} |
 {% endfor %}
