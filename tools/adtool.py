@@ -63,6 +63,7 @@ SEVERITY_ORDER = {"ERROR": 0, "WARN": 1, "INFO": 2}
 
 # conservative but practical: STK-OPS, C-003, CAP-05, SL-001, R-001 etc.
 ID_RE = re.compile(r"^[A-Za-z][A-Za-z0-9\-_.:]*$")
+APPENDIX_FILE_RE = re.compile(r"^appendix-(\d+)\.md$")
 
 
 def todo(label: str = "TODO") -> str:
@@ -1212,6 +1213,26 @@ def load_ad_meta(spec_dir: Path) -> Dict[str, Any]:
     return meta
 
 
+def load_appendix_markdown(spec_dir: Path) -> str:
+    appendix_files: List[Tuple[int, Path]] = []
+    for path in spec_dir.iterdir():
+        if not path.is_file():
+            continue
+        match = APPENDIX_FILE_RE.fullmatch(path.name)
+        if not match:
+            continue
+        appendix_files.append((int(match.group(1)), path))
+
+    if not appendix_files:
+        return ""
+
+    appendix_files.sort(key=lambda x: (x[0], x[1].name))
+    parts: List[str] = []
+    for _, path in appendix_files:
+        parts.append(path.read_text(encoding="utf-8").rstrip())
+    return "\n\n".join(part for part in parts if part)
+
+
 def cmd_build(args: argparse.Namespace) -> int:
     spec_dir = Path(args.spec_dir)
     stakeholders, concerns, capabilities, views, service_levels, risks, glossary, issues = build_all(spec_dir)
@@ -1246,6 +1267,10 @@ def cmd_build(args: argparse.Namespace) -> int:
         meta=meta,
         template_text=template_text,
     )
+
+    appendix_text = load_appendix_markdown(spec_dir)
+    if appendix_text:
+        ad_text = f"{ad_text.rstrip()}\n\n{appendix_text}\n"
 
     out_format = (args.format or "").strip().lower()
     if not out_format:
