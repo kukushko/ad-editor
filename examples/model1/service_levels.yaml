@@ -1,0 +1,14 @@
+service_levels:
+- id: SL-001
+  name: Time to result
+  sli_definition: timestamp(result_published) - timestamp(feed_received)
+  window: monthly
+  exclusions: <TODO>
+  target_slo: <TODO>
+  contractual_sla: <TODO>
+- id: SL-002
+  name: 'TODO: Service level objective name.'
+  sli_definition: 'TODO: Metric formula or definition.'
+  window: 'TODO: Measurement window, e.g., monthly.'
+  target_slo: 'TODO: Target objective value.'
+  contractual_sla: 'TODO: Contractual commitment if applicable.'
