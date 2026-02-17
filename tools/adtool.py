@@ -8,6 +8,7 @@ Spec directory files (YAML):
   - capabilities.yaml              (required)
   - service_levels.yaml            (optional)
   - risks.yaml                     (optional, but supported and rendered if present)
+  - ad.yaml                        (optional AD-level metadata)
 
 What it does (deterministic):
   1) Validation: basic structure, IDs, reference integrity
@@ -849,6 +850,9 @@ DEFAULT_TEMPLATE = r"""
 {% for cap in capabilities -%}
 | {{ cap.id }} | {{ cap.name | replace("|","\\|") }} | {{ cap.description_one_line | replace("|","\\|") }} | {{ cap.concerns_str | replace("|","\\|") }} | {{ cap.constraints_json | replace("|","\\|") }} | {{ cap.tags_str | replace("|","\\|") }} |
 {% endfor %}
+{% else %}
+| {{ todo() }} | No views provided | {{ todo() }} | {{ todo() }} | {{ todo() }} | {{ todo() }} | {{ todo() }} |
+{% endif %}
 
 ---
 
@@ -1168,6 +1172,45 @@ def cmd_validate(args: argparse.Namespace) -> int:
     return 0
 
 
+def load_ad_meta(spec_dir: Path) -> Dict[str, Any]:
+    defaults: Dict[str, Any] = {
+        "system_name": "RCS",
+        "document_id": "AD-RCS-001",
+        "version": "0.1",
+        "date": dt.date.today().isoformat(),
+        "status": "Draft",
+        "scope": "",
+    }
+
+    ad_path = spec_dir / "ad.yaml"
+    if not ad_path.exists():
+        return defaults
+
+    try:
+        loaded = load_yaml_file(ad_path)
+    except Exception:
+        return defaults
+
+    if not isinstance(loaded, dict):
+        return defaults
+
+    mapping = {
+        "system_name": "system_name",
+        "document_id": "document_id",
+        "version": "version",
+        "date": "date",
+        "status": "status",
+        "scope": "scope",
+    }
+
+    meta = dict(defaults)
+    for src, dst in mapping.items():
+        value = loaded.get(src)
+        if isinstance(value, str) and value.strip():
+            meta[dst] = value.strip()
+    return meta
+
+
 def cmd_build(args: argparse.Namespace) -> int:
     spec_dir = Path(args.spec_dir)
     stakeholders, concerns, capabilities, views, service_levels, risks, glossary, issues = build_all(spec_dir)
@@ -1188,15 +1231,8 @@ def cmd_build(args: argparse.Namespace) -> int:
     if args.template:
         template_text = Path(args.template).read_text(encoding="utf-8")
 
-    meta = {
-        "system_name": args.system_name,
-        "document_id": args.document_id,
-        "version": args.version,
-        "date": args.date or dt.date.today().isoformat(),
-        "status": args.status,
-        "scope": args.scope,
-        "glossary": [{"name": g.name, "description": g.description} for g in glossary],
-    }
+    meta = load_ad_meta(spec_dir)
+    meta["glossary"] = [{"name": g.name, "description": g.description} for g in glossary]
 
     ad_text = render_ad(
         stakeholders=stakeholders,
@@ -1255,12 +1291,6 @@ def make_parser() -> argparse.ArgumentParser:
     pb.add_argument("--format", choices=["md", "docx"], default="", help="Output format (default: inferred from --out suffix)")
     pb.add_argument("--fail-on-warn", action="store_true", help="Exit non-zero if WARN exists")
 
-    pb.add_argument("--system-name", default="RCS")
-    pb.add_argument("--document-id", default="AD-RCS-001")
-    pb.add_argument("--version", default="0.1")
-    pb.add_argument("--date", default="")
-    pb.add_argument("--status", default="Draft")
-    pb.add_argument("--scope", default="")
 
     pb.set_defaults(func=cmd_build)
 
