@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="420" viewBox="0 0 1100 420">
+  <style>
+    .box { fill:#f8fbff; stroke:#2b6cb0; stroke-width:2; rx:10; ry:10; }
+    .title { font: 600 18px Arial, sans-serif; fill:#1a365d; }
+    .label { font: 14px Arial, sans-serif; fill:#1a365d; }
+    .arrow { stroke:#2d3748; stroke-width:2; marker-end:url(#arrow); }
+  </style>
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <polygon points="0,0 8,4 0,8" fill="#2d3748" />
+    </marker>
+  </defs>
+  <text x="30" y="34" class="title">AD Editor — Entity Link Model</text>
+
+  <rect class="box" x="40" y="80" width="160" height="60"/><text x="58" y="115" class="label">Stakeholders</text>
+  <rect class="box" x="260" y="80" width="160" height="60"/><text x="296" y="115" class="label">Concerns</text>
+  <rect class="box" x="480" y="80" width="160" height="60"/><text x="510" y="115" class="label">Capabilities</text>
+  <rect class="box" x="700" y="80" width="160" height="60"/><text x="742" y="115" class="label">Risks</text>
+  <rect class="box" x="920" y="80" width="140" height="60"/><text x="963" y="115" class="label">Views</text>
+
+  <rect class="box" x="260" y="220" width="160" height="60"/><text x="300" y="255" class="label">Decisions</text>
+  <rect class="box" x="480" y="220" width="160" height="60"/><text x="526" y="255" class="label">Glossary</text>
+
+  <line class="arrow" x1="200" y1="110" x2="260" y2="110"/>
+  <line class="arrow" x1="420" y1="110" x2="480" y2="110"/>
+  <line class="arrow" x1="640" y1="110" x2="700" y2="110"/>
+  <line class="arrow" x1="860" y1="110" x2="920" y2="110"/>
+
+  <line class="arrow" x1="340" y1="220" x2="560" y2="140"/>
+  <line class="arrow" x1="560" y1="220" x2="560" y2="140"/>
+  <text x="33" y="355" class="label">Legend: arrows represent key traceability links validated by adtool.py.</text>
+</svg>
