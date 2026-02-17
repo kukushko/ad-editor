@@ -1,0 +1,28 @@
+decisions:
+  - id: DEC-001
+    title: Use local-first monolithic service for MVP
+    status: Accepted
+    date: 2026-02-14
+    decision: Run API, renderer and UI in one local service process for small team usage.
+    rationale: Simplifies deployment and reduces operational complexity for teams under 10 architects.
+    alternatives_considered:
+      - Split backend/frontend with separate deployment
+      - Centralized hosted editor service
+    addresses_concerns: [C-001, C-003]
+    affected_capabilities: [CAP-001, CAP-003]
+    related_risks: [R-002]
+    related_views: [VW-002]
+
+  - id: DEC-002
+    title: Keep architecture source-of-truth in YAML
+    status: Accepted
+    date: 2026-02-14
+    decision: Store architecture entities in YAML files and track changes in Git.
+    rationale: Enables transparent review, versioning and deterministic builds.
+    alternatives_considered:
+      - SQL-only metadata store
+      - Closed proprietary architecture repository
+    addresses_concerns: [C-001, C-002]
+    affected_capabilities: [CAP-002, CAP-004]
+    related_risks: [R-001]
+    related_views: [VW-001]
