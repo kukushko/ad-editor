@@ -243,13 +243,13 @@ class AIAssistantService:
         arch_key = "" if architecture_id == "_root" else architecture_id
         arch_path = self.spec_service.get_arch_path(arch_key)
 
-        docs: List[Dict[str, str]] = []
+        docs: List[Dict[str, Any]] = []
         for yaml_file in sorted(arch_path.glob("*.yaml")):
             try:
                 text = yaml_file.read_text(encoding="utf-8")
             except OSError:
                 continue
-            docs.append({"source": yaml_file.name, "text": text[:12000]})
+            docs.append({"source": yaml_file.name, "file_stem": yaml_file.stem, "text": text[:24000]})
 
         if not docs:
             return []
@@ -261,36 +261,117 @@ class AIAssistantService:
         if not query_tokens:
             query_tokens = self._tokens(" ".join(queries))
 
-        scored: List[tuple[int, Dict[str, str]]] = []
+        scored: List[tuple[float, Dict[str, str]]] = []
         for doc in docs:
-            lowered = doc["text"].lower()
-            score = sum(lowered.count(token) for token in query_tokens)
-            if score <= 0:
-                continue
-            snippet = self._best_snippet(doc["text"], query_tokens)
-            if not snippet:
-                continue
-            scored.append((score, {"source": doc["source"], "snippet": snippet}))
+            chunks = self._extract_yaml_chunks(doc["text"])
+            for chunk in chunks:
+                score = self._score_chunk(
+                    chunk["text"],
+                    query_tokens=query_tokens,
+                    raw_queries=queries,
+                    file_stem=doc["file_stem"],
+                )
+                if score <= 0:
+                    continue
+                scored.append(
+                    (
+                        score,
+                        {
+                            "source": doc["source"],
+                            "snippet": chunk["text"],
+                            "line": str(chunk["line"]),
+                        },
+                    )
+                )
 
+        # Keep strongest hits first, then enforce diversity by source file.
         scored.sort(key=lambda item: item[0], reverse=True)
-        return [item[1] for item in scored[:top_k]]
+        per_source_limit = 2
+        source_counts: Dict[str, int] = {}
+        selected: List[Dict[str, str]] = []
+        for score, snippet in scored:
+            source = snippet["source"]
+            current_count = source_counts.get(source, 0)
+            if current_count >= per_source_limit:
+                continue
+            source_counts[source] = current_count + 1
+            selected.append(snippet)
+            if len(selected) >= top_k:
+                break
+        return selected
 
-    def _best_snippet(self, text: str, tokens: List[str], max_len: int = 900) -> str:
-        lines = [line.strip() for line in text.splitlines() if line.strip()]
-        best_line = ""
-        best_score = 0
+    def _extract_yaml_chunks(self, text: str, max_chunk_chars: int = 1000) -> List[Dict[str, Any]]:
+        lines = text.splitlines()
+        chunks: List[Dict[str, Any]] = []
+        n = len(lines)
+        i = 0
 
-        for line in lines:
-            lowered = line.lower()
-            score = sum(1 for token in tokens if token in lowered)
-            if score > best_score:
-                best_score = score
-                best_line = line
+        while i < n:
+            line = lines[i]
+            # Focus on list-item blocks in YAML; they usually represent meaningful entities.
+            if re.match(r"^\s*-\s+", line):
+                indent = len(line) - len(line.lstrip(" "))
+                start = i
+                i += 1
+                while i < n:
+                    current = lines[i]
+                    if re.match(r"^\s*-\s+", current):
+                        current_indent = len(current) - len(current.lstrip(" "))
+                        if current_indent == indent:
+                            break
+                    i += 1
+                block = "\n".join(lines[start:i]).strip()
+                if block:
+                    chunks.append({"line": start + 1, "text": block[:max_chunk_chars]})
+                continue
+            i += 1
 
-        if not best_line:
-            return text[:max_len]
+        # Fallback if file has no list blocks (or very small output).
+        if not chunks:
+            window = 12
+            step = 6
+            for start in range(0, n, step):
+                block = "\n".join(lines[start : start + window]).strip()
+                if block:
+                    chunks.append({"line": start + 1, "text": block[:max_chunk_chars]})
+                if len(chunks) >= 20:
+                    break
 
-        return best_line[:max_len]
+        return chunks
+
+    def _score_chunk(self, chunk_text: str, query_tokens: List[str], raw_queries: List[str], file_stem: str) -> float:
+        lowered = chunk_text.lower()
+        if not lowered.strip():
+            return 0.0
+
+        score = 0.0
+        for token in query_tokens:
+            count = lowered.count(token)
+            if count > 0:
+                score += 2.0 + min(count, 3)
+
+        # Boost exact phrase matches from raw queries.
+        for query in raw_queries:
+            q = query.strip().lower()
+            if len(q) >= 6 and q in lowered:
+                score += 4.0
+
+        # If query tokens mention file theme (e.g. "views"), prioritize that file.
+        if file_stem.lower() in query_tokens:
+            score += 3.0
+
+        # Penalize URL-only or nearly URL-only fragments.
+        if self._looks_like_link_dump(chunk_text):
+            score -= 4.0
+
+        return score
+
+    def _looks_like_link_dump(self, chunk_text: str) -> bool:
+        lines = [line.strip() for line in chunk_text.splitlines() if line.strip()]
+        if not lines:
+            return False
+        url_lines = sum(1 for line in lines if line.startswith("http://") or line.startswith("https://") or ":// " in line)
+        return (url_lines / len(lines)) >= 0.7
 
     def _tokens(self, text: str) -> List[str]:
         raw = re.findall(r"[a-zA-Z0-9_\-]{3,}", text.lower())
@@ -304,7 +385,7 @@ class AIAssistantService:
         if not snippets:
             return "No relevant local snippets found."
         return "\n\n".join(
-            f"[{idx}] source={snippet['source']}\n{snippet['snippet']}"
+            f"[{idx}] source={snippet['source']} line={snippet.get('line', '?')}\n{snippet['snippet']}"
             for idx, snippet in enumerate(snippets, start=1)
         )
 
