@@ -1,3 +1,14 @@
+"""RAG index management for YAML architecture data.
+
+This module builds and serves a local embedding index used by the AI assistant.
+The implementation is CPU-friendly and stores all runtime artifacts under `var/`.
+
+Key references:
+- Sentence Transformers docs: https://www.sbert.net/
+- SentenceTransformer API: https://www.sbert.net/docs/package_reference/sentence_transformer/SentenceTransformer.html
+- Why E5 uses query/passage prefixes: https://huggingface.co/intfloat/multilingual-e5-small
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -14,6 +25,8 @@ from .spec_service import SpecService
 
 @dataclass(frozen=True)
 class IndexStatus:
+    """Represents lifecycle state of an index for one architecture."""
+
     ready: bool
     stale: bool
     reason: str
@@ -26,6 +39,8 @@ class IndexStatus:
 
 @dataclass(frozen=True)
 class IndexBuildResult:
+    """Build summary returned after (re)building an index."""
+
     ok: bool
     architecture_id: str
     index_path: str
@@ -36,6 +51,21 @@ class IndexBuildResult:
 
 
 class RAGIndexService:
+    """Builds, validates and queries local RAG indexes.
+
+    Architecture overview:
+    1. Read YAML files from a selected architecture directory.
+    2. Split files into chunks (mostly YAML list-item blocks).
+    3. Encode chunks with Sentence Transformers on CPU.
+    4. Persist index payload as JSON under `var/index/<arch>/index.json`.
+    5. At query time combine semantic similarity with light lexical scoring.
+
+    Notes:
+    - This service intentionally uses a JSON index for simplicity and transparency.
+      For larger datasets this can be migrated to FAISS/Qdrant/pgvector.
+    - Model files are cached under `var/models` via Sentence Transformers.
+    """
+
     def __init__(
         self,
         spec_service: SpecService,
@@ -43,6 +73,14 @@ class RAGIndexService:
         var_dir: Path,
         embedding_model: str,
     ) -> None:
+        """Initialize index service and ensure runtime directories exist.
+
+        Args:
+            spec_service: Existing domain service for architecture path resolution.
+            specs_dir: Root directory with architecture YAML specs.
+            var_dir: Runtime directory where models and indexes are stored.
+            embedding_model: Model name/path accepted by SentenceTransformer.
+        """
         self.spec_service = spec_service
         self.specs_dir = specs_dir
         self.var_dir = var_dir
@@ -53,9 +91,24 @@ class RAGIndexService:
         self.index_root.mkdir(parents=True, exist_ok=True)
         self.logger = logging.getLogger("uvicorn.error")
 
+        # Lazy-loaded model instance, shared across requests in-process.
         self._embedder = None
 
     def status(self, architecture_id: str) -> IndexStatus:
+        """Return status and staleness information for an architecture index.
+
+        Staleness checks include:
+        - missing index file,
+        - embedding model mismatch,
+        - YAML file set mismatch,
+        - YAML mtime or size changes after index creation.
+
+        Args:
+            architecture_id: Architecture key or `_root`.
+
+        Returns:
+            Structured status with human-readable reason.
+        """
         arch_key = "" if architecture_id == "_root" else architecture_id
         display_arch = architecture_id or "_root"
         index_payload = self._load_index_payload(architecture_id)
@@ -154,6 +207,19 @@ class RAGIndexService:
         )
 
     def build_index(self, architecture_id: str) -> IndexBuildResult:
+        """Build or rebuild index for a selected architecture.
+
+        The method is intentionally deterministic:
+        - files are processed in sorted order,
+        - chunk extraction is deterministic,
+        - output is atomically written via temp file.
+
+        Args:
+            architecture_id: Architecture key or `_root`.
+
+        Returns:
+            Index build summary.
+        """
         arch_key = "" if architecture_id == "_root" else architecture_id
         display_arch = architecture_id or "_root"
         arch_path = self.spec_service.get_arch_path(arch_key)
@@ -176,6 +242,7 @@ class RAGIndexService:
                 )
 
         if not chunks:
+            # Valid edge-case: architecture can be present but empty.
             payload = {
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 "architecture_id": display_arch,
@@ -194,6 +261,7 @@ class RAGIndexService:
                 created_at=payload["created_at"],
             )
 
+        # E5 models are trained with explicit role prefixes (`passage:` / `query:`).
         texts = [f"passage: {chunk['text']}" for chunk in chunks]
         vectors = self._encode_texts(texts)
         for chunk, vector in zip(chunks, vectors):
@@ -228,6 +296,20 @@ class RAGIndexService:
         )
 
     def retrieve(self, architecture_id: str, queries: List[str], top_k: int = 6) -> List[Dict[str, str]]:
+        """Retrieve top-k snippets using hybrid scoring.
+
+        Hybrid score = 0.8 * semantic + 0.2 * lexical, with small heuristics:
+        - bonus when source file name matches query tokens,
+        - penalty for link-dump chunks.
+
+        Args:
+            architecture_id: Architecture key or `_root`.
+            queries: One or more retrieval queries.
+            top_k: Max snippets to return.
+
+        Returns:
+            List of snippet dicts (`source`, `line`, `snippet`).
+        """
         payload = self._load_index_payload(architecture_id)
         if payload is None:
             return []
@@ -240,6 +322,7 @@ class RAGIndexService:
         if not joined_query:
             return []
 
+        # Query is encoded with `query:` prefix for E5-compatible behavior.
         query_vector = self._encode_texts([f"query: {joined_query}"])[0]
         query_tokens = self._tokens(joined_query)
 
@@ -278,6 +361,7 @@ class RAGIndexService:
 
         scored.sort(key=lambda item: item[0], reverse=True)
 
+        # Diversity guard: avoid dominating output by one file.
         source_counts: Dict[str, int] = {}
         per_source_limit = 2
         selected: List[Dict[str, str]] = []
@@ -294,10 +378,12 @@ class RAGIndexService:
         return selected
 
     def _index_path(self, architecture_id: str) -> Path:
+        """Return index file path for a given architecture id."""
         name = architecture_id if architecture_id and architecture_id != "_root" else "_root"
         return self.index_root / name / "index.json"
 
     def _save_index_payload(self, architecture_id: str, payload: Dict[str, Any]) -> None:
+        """Persist index payload atomically to avoid partial writes."""
         index_path = self._index_path(architecture_id)
         index_path.parent.mkdir(parents=True, exist_ok=True)
         tmp_path = index_path.with_suffix(".json.tmp")
@@ -305,6 +391,7 @@ class RAGIndexService:
         tmp_path.replace(index_path)
 
     def _load_index_payload(self, architecture_id: str) -> Dict[str, Any] | None:
+        """Load index payload from disk, returning `None` on missing/invalid data."""
         index_path = self._index_path(architecture_id)
         if not index_path.exists():
             return None
@@ -317,6 +404,7 @@ class RAGIndexService:
         return data
 
     def _collect_yaml_file_stats(self, arch_path: Path) -> Dict[str, Dict[str, Any]]:
+        """Collect mtime/size metadata for stale detection."""
         result: Dict[str, Dict[str, Any]] = {}
         for file_path in sorted(arch_path.glob("*.yaml")):
             try:
@@ -332,6 +420,19 @@ class RAGIndexService:
         return result
 
     def _extract_yaml_chunks(self, text: str, max_chunk_chars: int = 1000) -> List[Dict[str, Any]]:
+        """Split YAML text into retrieval-friendly chunks.
+
+        Strategy:
+        - primary: list-item blocks (`- ...`) with same indentation,
+        - fallback: sliding windows for files that have no list items.
+
+        Args:
+            text: Full YAML file content.
+            max_chunk_chars: Hard cap per chunk for index size control.
+
+        Returns:
+            List of chunks with source line and text.
+        """
         lines = text.splitlines()
         chunks: List[Dict[str, Any]] = []
         n = len(lines)
@@ -369,6 +470,11 @@ class RAGIndexService:
         return chunks
 
     def _encode_texts(self, texts: List[str]) -> List[List[float]]:
+        """Encode texts into normalized embeddings (CPU) and return plain lists.
+
+        Normalization is enabled in the encoder so cosine similarity can be used
+        consistently even if model output scales vary.
+        """
         embedder = self._get_embedder()
         vectors = embedder.encode(
             texts,
@@ -380,6 +486,11 @@ class RAGIndexService:
         return [vector.tolist() for vector in vectors]
 
     def _get_embedder(self):
+        """Lazily initialize `SentenceTransformer` with CPU + local cache folder.
+
+        The model is downloaded automatically by sentence-transformers if not present.
+        Cache location is pinned to `var/models` for project-local portability.
+        """
         if self._embedder is not None:
             return self._embedder
 
@@ -407,6 +518,7 @@ class RAGIndexService:
         return self._embedder
 
     def _tokens(self, text: str) -> List[str]:
+        """Extract lightweight query tokens for lexical scoring."""
         raw = re.findall(r"[a-zA-Z0-9_\-]{3,}", text.lower())
         stop_words = {
             "the", "and", "for", "with", "that", "this", "from", "into", "about", "please", "user", "chat", "help",
@@ -415,6 +527,7 @@ class RAGIndexService:
         return [token for token in raw if token not in stop_words][:60]
 
     def _lexical_score(self, text: str, query_tokens: List[str]) -> float:
+        """Return normalized lexical overlap score in range [0..1]."""
         lowered = text.lower()
         if not lowered or not query_tokens:
             return 0.0
@@ -422,6 +535,7 @@ class RAGIndexService:
         return hits / max(1, len(query_tokens))
 
     def _cosine_similarity(self, a: List[float], b: List[float]) -> float:
+        """Compute cosine similarity defensively for list-based vectors."""
         if not a or not b:
             return 0.0
         if len(a) != len(b):
@@ -434,6 +548,7 @@ class RAGIndexService:
         return dot / (norm_a * norm_b)
 
     def _looks_like_link_dump(self, chunk_text: str) -> bool:
+        """Detect mostly-link snippets that are usually poor retrieval context."""
         lines = [line.strip() for line in chunk_text.splitlines() if line.strip()]
         if not lines:
             return False

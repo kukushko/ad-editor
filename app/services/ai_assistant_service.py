@@ -1,3 +1,15 @@
+"""AI assistant orchestration layer.
+
+This service executes a multi-step protocol around the LLM instead of sending
+user text directly as a single prompt:
+1. Planner: decompose user intent into subtasks and retrieval queries.
+2. Retrieval: fetch context snippets from the local embedding index.
+3. Worker(s): solve each subtask with retrieved context.
+4. Synthesis: merge worker outputs into the final answer.
+
+The module also emits readable server-side protocol logs that can be colored.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -33,11 +45,21 @@ SYNTHESIS_PROMPT = (
 
 @dataclass(frozen=True)
 class AIProtocolResult:
+    """Final assistant output plus lightweight protocol summary."""
+
     answer: str
     protocol_steps: List[str]
 
 
 class AIAssistantService:
+    """Coordinates planning, retrieval and synthesis over an OpenAI-compatible API.
+
+    Design goals:
+    - keep backend control over tool-like steps (planning/RAG/synthesis),
+    - provide high observability via server logs,
+    - fail with explicit runtime errors when LLM responses are malformed.
+    """
+
     def __init__(
         self,
         rag_index_service: RAGIndexService,
@@ -49,6 +71,18 @@ class AIAssistantService:
         reasoning_log_max_chars: int = 2400,
         reasoning_log_colors: bool = True,
     ) -> None:
+        """Initialize assistant service.
+
+        Args:
+            rag_index_service: Retrieval service backed by local embedding index.
+            openai_base_url: OpenAI-compatible API base URL.
+            openai_model: Chat model name/path sent to /chat/completions.
+            openai_api_key: Bearer key for upstream LLM endpoint.
+            rag_top_k: Max snippets per request.
+            reasoning_log_enabled: Enable detailed protocol logs.
+            reasoning_log_max_chars: Max chars per logged field value.
+            reasoning_log_colors: Enable ANSI colors in server console logs.
+        """
         self.rag_index_service = rag_index_service
         self.openai_base_url = openai_base_url.rstrip("/")
         self.openai_model = openai_model
@@ -57,11 +91,21 @@ class AIAssistantService:
         self.reasoning_log_enabled = reasoning_log_enabled
         self.reasoning_log_max_chars = max(600, reasoning_log_max_chars)
         self.reasoning_log_colors = reasoning_log_colors
-        # Route AI protocol logs to the main server logger so they are visible in uvicorn logs.
+
+        # Route protocol logs to uvicorn logger so everything appears in server output.
         self.logger = logging.getLogger("uvicorn.error")
         self.logger.setLevel(logging.INFO)
 
     def chat(self, architecture_id: str, messages: List[Dict[str, str]]) -> AIProtocolResult:
+        """Execute the full assistant protocol for one chat turn.
+
+        Args:
+            architecture_id: Selected architecture key from UI.
+            messages: Prior chat history + latest user message.
+
+        Returns:
+            Structured assistant answer and protocol step summary.
+        """
         user_message = self._get_last_user_message(messages)
         history_text = self._history_text(messages)
         self._log_section(
@@ -150,6 +194,19 @@ class AIAssistantService:
         return AIProtocolResult(answer=final_answer.strip(), protocol_steps=steps)
 
     def _llm_chat(self, system_prompt: str, user_prompt: str, temperature: float, phase: str) -> str:
+        """Call upstream OpenAI-compatible chat endpoint.
+
+        This method validates basic response shape and returns assistant text.
+
+        Args:
+            system_prompt: System role prompt.
+            user_prompt: User role prompt.
+            temperature: Sampling temperature.
+            phase: Protocol phase label used in logs.
+
+        Raises:
+            RuntimeError: For transport errors or malformed response payload.
+        """
         payload = {
             "model": self.openai_model,
             "temperature": temperature,
@@ -169,6 +226,7 @@ class AIAssistantService:
                 "user_prompt": user_prompt,
             },
         )
+
         data = json.dumps(payload).encode("utf-8")
         req = urllib.request.Request(
             url=f"{self.openai_base_url}/chat/completions",
@@ -201,6 +259,7 @@ class AIAssistantService:
         if not isinstance(content, str) or not content.strip():
             self._log_section(f"LLM Error [{phase}]", {"error": "LLM response content is empty"})
             raise RuntimeError("LLM response content is empty")
+
         self._log_section(
             f"LLM Response [{phase}]",
             {
@@ -211,6 +270,11 @@ class AIAssistantService:
         return content
 
     def _parse_plan(self, planner_raw: str, fallback_user_message: str) -> Dict[str, Any]:
+        """Parse planner output JSON with robust fallback.
+
+        Planner is asked to return JSON, but model output may include markdown
+        fences or malformed JSON. This method normalizes and provides safe fallback.
+        """
         cleaned = planner_raw.strip()
         if cleaned.startswith("```"):
             cleaned = cleaned.strip("`")
@@ -242,6 +306,7 @@ class AIAssistantService:
         }
 
     def _format_snippets(self, snippets: List[Dict[str, str]]) -> str:
+        """Format retrieval snippets as compact plain text for worker prompts."""
         if not snippets:
             return "No relevant local snippets found."
         return "\n\n".join(
@@ -250,12 +315,14 @@ class AIAssistantService:
         )
 
     def _get_last_user_message(self, messages: List[Dict[str, str]]) -> str:
+        """Return the latest non-empty user message from history."""
         for message in reversed(messages):
             if message.get("role") == "user" and str(message.get("content", "")).strip():
                 return str(message["content"])
         raise RuntimeError("No user message found in request")
 
     def _history_text(self, messages: List[Dict[str, str]], limit: int = 8) -> str:
+        """Convert recent messages into readable text block for planner prompt."""
         recent = messages[-limit:]
         parts: List[str] = []
         for message in recent:
@@ -267,6 +334,7 @@ class AIAssistantService:
         return "\n".join(parts)
 
     def _log_section(self, title: str, fields: Dict[str, str]) -> None:
+        """Emit one human-friendly protocol section into server logs."""
         if not self.reasoning_log_enabled:
             return
         title_kind = self._title_kind(title)
@@ -280,6 +348,7 @@ class AIAssistantService:
         self.logger.info("\n".join(lines))
 
     def _truncate_for_log(self, value: Any) -> str:
+        """Trim long log values to keep server logs readable."""
         text = str(value).strip()
         if len(text) <= self.reasoning_log_max_chars:
             return text
@@ -287,6 +356,7 @@ class AIAssistantService:
         return f"{cut}\n... [truncated {len(text) - self.reasoning_log_max_chars} chars]"
 
     def _mask_api_key(self, key: str) -> str:
+        """Return masked API key preview safe for logs."""
         if not key:
             return "(empty)"
         if len(key) <= 6:
@@ -294,6 +364,7 @@ class AIAssistantService:
         return f"{key[:3]}***{key[-3:]}"
 
     def _title_kind(self, title: str) -> str:
+        """Map section title to log color style kind."""
         lowered = title.lower()
         if "llm request" in lowered:
             return "request"
@@ -310,6 +381,11 @@ class AIAssistantService:
         return "section"
 
     def _paint(self, text: str, kind: str) -> str:
+        """Apply ANSI style by section kind if colored logs are enabled.
+
+        ANSI references:
+        - https://en.wikipedia.org/wiki/ANSI_escape_code
+        """
         if not self.reasoning_log_colors:
             return text
         colors = {
