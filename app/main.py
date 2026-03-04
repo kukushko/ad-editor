@@ -42,6 +42,7 @@ ai_assistant_service = AIAssistantService(
     openai_api_key=settings.openai_api_key,
     reasoning_log_enabled=settings.ai_reasoning_log_enabled,
     reasoning_log_max_chars=settings.ai_reasoning_log_max_chars,
+    reasoning_log_colors=settings.ai_reasoning_log_colors,
 )
 
 app = FastAPI(title="AD Editor API", version="0.5.0")

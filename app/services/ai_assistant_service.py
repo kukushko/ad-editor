@@ -49,6 +49,7 @@ class AIAssistantService:
         openai_api_key: str,
         reasoning_log_enabled: bool = True,
         reasoning_log_max_chars: int = 2400,
+        reasoning_log_colors: bool = True,
     ) -> None:
         self.spec_service = spec_service
         self.specs_dir = specs_dir
@@ -57,6 +58,7 @@ class AIAssistantService:
         self.openai_api_key = openai_api_key
         self.reasoning_log_enabled = reasoning_log_enabled
         self.reasoning_log_max_chars = max(600, reasoning_log_max_chars)
+        self.reasoning_log_colors = reasoning_log_colors
         # Route AI protocol logs to the main server logger so they are visible in uvicorn logs.
         self.logger = logging.getLogger("uvicorn.error")
         self.logger.setLevel(logging.INFO)
@@ -326,12 +328,14 @@ class AIAssistantService:
     def _log_section(self, title: str, fields: Dict[str, str]) -> None:
         if not self.reasoning_log_enabled:
             return
-        lines = [f"===== {title} ====="]
+        title_kind = self._title_kind(title)
+        painted_title = self._paint(f"===== {title} =====", title_kind)
+        lines = [painted_title]
         for key, value in fields.items():
             safe_value = self._truncate_for_log(value)
-            lines.append(f"{key}:")
+            lines.append(self._paint(f"{key}:", "key"))
             lines.append(safe_value)
-        lines.append("=" * (len(title) + 12))
+        lines.append(self._paint("=" * (len(title) + 12), title_kind))
         self.logger.info("\n".join(lines))
 
     def _truncate_for_log(self, value: Any) -> str:
@@ -347,3 +351,38 @@ class AIAssistantService:
         if len(key) <= 6:
             return "*" * len(key)
         return f"{key[:3]}***{key[-3:]}"
+
+    def _title_kind(self, title: str) -> str:
+        lowered = title.lower()
+        if "llm request" in lowered:
+            return "request"
+        if "llm response" in lowered:
+            return "response"
+        if "error" in lowered:
+            return "error"
+        if "planner" in lowered:
+            return "planner"
+        if "rag retrieval" in lowered:
+            return "retrieval"
+        if "finished" in lowered:
+            return "done"
+        return "section"
+
+    def _paint(self, text: str, kind: str) -> str:
+        if not self.reasoning_log_colors:
+            return text
+        colors = {
+            "request": "\033[96m",   # cyan
+            "response": "\033[92m",  # green
+            "error": "\033[91m",     # red
+            "planner": "\033[93m",   # yellow
+            "retrieval": "\033[94m", # blue
+            "done": "\033[95m",      # magenta
+            "section": "\033[90m",   # gray
+            "key": "\033[1m",        # bold
+        }
+        reset = "\033[0m"
+        color = colors.get(kind)
+        if not color:
+            return text
+        return f"{color}{text}{reset}"

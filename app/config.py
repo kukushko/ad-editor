@@ -16,6 +16,7 @@ class Settings:
     openai_api_key: str
     ai_reasoning_log_enabled: bool
     ai_reasoning_log_max_chars: int
+    ai_reasoning_log_colors: bool
 
 
 def _env_bool(name: str, default: bool) -> bool:
@@ -45,6 +46,7 @@ def load_settings() -> Settings:
     openai_api_key = os.getenv("OPENAI_API_KEY", "dummy")
     ai_reasoning_log_enabled = _env_bool("AD_EDITOR_AI_REASONING_LOG", True)
     ai_reasoning_log_max_chars = _env_int("AD_EDITOR_AI_REASONING_LOG_MAX_CHARS", 2400)
+    ai_reasoning_log_colors = _env_bool("AD_EDITOR_AI_REASONING_LOG_COLORS", True)
 
     return Settings(
         repo_root=repo_root.resolve(),
@@ -56,4 +58,5 @@ def load_settings() -> Settings:
         openai_api_key=openai_api_key,
         ai_reasoning_log_enabled=ai_reasoning_log_enabled,
         ai_reasoning_log_max_chars=ai_reasoning_log_max_chars,
+        ai_reasoning_log_colors=ai_reasoning_log_colors,
     )

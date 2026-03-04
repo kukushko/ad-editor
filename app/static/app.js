@@ -31,6 +31,7 @@ const el = {
   aiToggleBtn: document.getElementById('aiToggleBtn'),
   aiPanel: document.getElementById('aiPanel'),
   aiResizer: document.getElementById('aiResizer'),
+  aiClearBtn: document.getElementById('aiClearBtn'),
   aiMessages: document.getElementById('aiMessages'),
   aiInput: document.getElementById('aiInput'),
   aiSendBtn: document.getElementById('aiSendBtn'),
@@ -181,6 +182,12 @@ function saveAiHistory() {
 function loadAiHistory() {
   const raw = localStorage.getItem(getAiStorageKey());
   state.aiMessages = raw ? JSON.parse(raw) : [];
+}
+
+function clearAiHistory() {
+  state.aiMessages = [];
+  localStorage.removeItem(getAiStorageKey());
+  renderAiMessages();
 }
 
 function saveAiPanelHeight() {
@@ -669,6 +676,13 @@ function bindEvents() {
     sendAiMessage().catch((error) => {
       alert(`AI request failed: ${error.message}`);
     });
+  });
+
+  el.aiClearBtn.addEventListener('click', () => {
+    if (state.aiSending) return;
+    const confirmed = confirm('Clear AI chat history for the current workspace?');
+    if (!confirmed) return;
+    clearAiHistory();
   });
 
   el.aiInput.addEventListener('keydown', (event) => {
