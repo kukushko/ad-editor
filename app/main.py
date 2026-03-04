@@ -9,6 +9,8 @@ from fastapi.staticfiles import StaticFiles
 from .config import load_settings
 from .editor_config import get_editor_metadata
 from .schemas import (
+    AIChatRequest,
+    AIChatResponse,
     ArchitectureListResponse,
     BuildRequest,
     CommandResult,
@@ -21,6 +23,7 @@ from .schemas import (
     ValidationIssueResponse,
     ValidationResponse,
 )
+from .services.ai_assistant_service import AIAssistantService
 from .services.build_service import BuildService
 from .services.git_service import GitService
 from .services.spec_service import SpecService
@@ -31,6 +34,15 @@ spec_service = SpecService(settings.specs_dir)
 git_service = GitService(settings.repo_root)
 build_service = BuildService(settings.repo_root, settings.adtool_path, settings.output_dir, settings.specs_dir)
 validation_service = ValidationService(settings.specs_dir)
+ai_assistant_service = AIAssistantService(
+    spec_service=spec_service,
+    specs_dir=settings.specs_dir,
+    openai_base_url=settings.openai_base_url,
+    openai_model=settings.openai_model,
+    openai_api_key=settings.openai_api_key,
+    reasoning_log_enabled=settings.ai_reasoning_log_enabled,
+    reasoning_log_max_chars=settings.ai_reasoning_log_max_chars,
+)
 
 app = FastAPI(title="AD Editor API", version="0.5.0")
 
@@ -167,3 +179,18 @@ def git_commit(request: GitCommitRequest) -> CommandResult:
 @app.post("/git/push", response_model=CommandResult)
 def git_push(request: GitPushRequest) -> CommandResult:
     return to_command_result(git_service.push(request.remote, request.branch))
+
+
+@app.post("/ai/chat", response_model=AIChatResponse)
+def ai_chat(request: AIChatRequest) -> AIChatResponse:
+    try:
+        result = ai_assistant_service.chat(
+            architecture_id=request.architecture_id,
+            messages=[message.model_dump() for message in request.messages],
+        )
+    except (FileNotFoundError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    return AIChatResponse(answer=result.answer, protocol_steps=result.protocol_steps)

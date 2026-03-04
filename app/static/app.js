@@ -9,6 +9,9 @@ const state = {
   dirty: false,
   sort: { column: 'id', direction: 'asc' },
   referenceEntityRowsCache: {},
+  aiMessages: [],
+  aiPanelOpen: false,
+  aiSending: false,
 };
 
 const el = {
@@ -25,6 +28,12 @@ const el = {
   newRowBtn: document.getElementById('newRowBtn'),
   deleteRowBtn: document.getElementById('deleteRowBtn'),
   buildBtn: document.getElementById('buildBtn'),
+  aiToggleBtn: document.getElementById('aiToggleBtn'),
+  aiPanel: document.getElementById('aiPanel'),
+  aiResizer: document.getElementById('aiResizer'),
+  aiMessages: document.getElementById('aiMessages'),
+  aiInput: document.getElementById('aiInput'),
+  aiSendBtn: document.getElementById('aiSendBtn'),
 };
 
 async function apiGet(url) {
@@ -36,6 +45,16 @@ async function apiGet(url) {
 async function apiPut(url, data) {
   const r = await fetch(url, {
     method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+async function apiPost(url, data) {
+  const r = await fetch(url, {
+    method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   });
@@ -145,6 +164,128 @@ async function applyNavState(navState) {
   el.searchInput.value = navState.search || '';
   renderTable();
   return true;
+}
+
+function getAiStorageKey() {
+  return `ad-editor:ai-chat:${state.architectureId || '_none'}`;
+}
+
+function getAiPanelHeightKey() {
+  return 'ad-editor:ai-panel-height';
+}
+
+function saveAiHistory() {
+  localStorage.setItem(getAiStorageKey(), JSON.stringify(state.aiMessages.slice(-40)));
+}
+
+function loadAiHistory() {
+  const raw = localStorage.getItem(getAiStorageKey());
+  state.aiMessages = raw ? JSON.parse(raw) : [];
+}
+
+function saveAiPanelHeight() {
+  if (!el.aiPanel) return;
+  localStorage.setItem(getAiPanelHeightKey(), String(el.aiPanel.offsetHeight));
+}
+
+function restoreAiPanelHeight() {
+  const raw = localStorage.getItem(getAiPanelHeightKey());
+  const value = Number(raw || 0);
+  if (value > 140 && value < window.innerHeight * 0.8) {
+    el.aiPanel.style.height = `${value}px`;
+  }
+}
+
+function renderAiMessages() {
+  if (!el.aiMessages) return;
+  if (!state.aiMessages.length) {
+    el.aiMessages.innerHTML = '<div class="ai-message system"><div class="ai-message-role">System</div><div>AI assistant is ready. Ask a question.</div></div>';
+    return;
+  }
+
+  el.aiMessages.innerHTML = state.aiMessages
+    .map((message) => {
+      const role = message.role === 'assistant' ? 'Assistant' : message.role === 'user' ? 'User' : 'System';
+      const cls = message.role === 'assistant' || message.role === 'user' ? message.role : 'system';
+      const content = String(message.content || '').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+      return `<div class="ai-message ${cls}"><div class="ai-message-role">${role}</div><div>${content}</div></div>`;
+    })
+    .join('');
+  el.aiMessages.scrollTop = el.aiMessages.scrollHeight;
+}
+
+function setAiPanelOpen(open) {
+  state.aiPanelOpen = open;
+  el.aiPanel.classList.toggle('hidden', !open);
+  el.aiToggleBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  el.aiToggleBtn.textContent = open ? 'Hide AI' : 'AI';
+  if (open) {
+    renderAiMessages();
+    setTimeout(() => {
+      el.aiInput.focus();
+    }, 0);
+  }
+}
+
+function bindAiPanelResize() {
+  let startY = 0;
+  let startHeight = 0;
+
+  const onPointerMove = (event) => {
+    const delta = startY - event.clientY;
+    const minHeight = 140;
+    const maxHeight = Math.floor(window.innerHeight * 0.8);
+    const nextHeight = Math.max(minHeight, Math.min(maxHeight, startHeight + delta));
+    el.aiPanel.style.height = `${nextHeight}px`;
+  };
+
+  const onPointerUp = () => {
+    window.removeEventListener('pointermove', onPointerMove);
+    window.removeEventListener('pointerup', onPointerUp);
+    saveAiPanelHeight();
+  };
+
+  el.aiResizer.addEventListener('pointerdown', (event) => {
+    event.preventDefault();
+    startY = event.clientY;
+    startHeight = el.aiPanel.offsetHeight;
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+  });
+}
+
+async function sendAiMessage() {
+  const text = el.aiInput.value.trim();
+  if (!text || state.aiSending) return;
+  state.aiSending = true;
+  el.aiSendBtn.disabled = true;
+  el.aiInput.disabled = true;
+
+  state.aiMessages.push({ role: 'user', content: text });
+  renderAiMessages();
+  saveAiHistory();
+  el.aiInput.value = '';
+
+  try {
+    const response = await apiPost('/ai/chat', {
+      architecture_id: state.architectureId,
+      messages: state.aiMessages.slice(-20),
+    });
+    state.aiMessages.push({ role: 'assistant', content: response.answer || '' });
+    if (response.protocol_steps?.length) {
+      state.aiMessages.push({ role: 'system', content: `Protocol: ${response.protocol_steps.join(' | ')}` });
+    }
+    renderAiMessages();
+    saveAiHistory();
+  } catch (error) {
+    state.aiMessages.push({ role: 'system', content: `Error: ${error.message}` });
+    renderAiMessages();
+  } finally {
+    state.aiSending = false;
+    el.aiSendBtn.disabled = false;
+    el.aiInput.disabled = false;
+    el.aiInput.focus();
+  }
 }
 
 
@@ -310,7 +451,7 @@ function renderTable() {
   const tbody = el.entityTable.querySelector('tbody');
 
   thead.innerHTML = `<tr>${columns
-    .map((c) => `<th data-sort="${c}">${c}${state.sort.column === c ? (state.sort.direction === 'asc' ? ' ▲' : ' ▼') : ''}</th>`)
+    .map((c) => `<th data-sort="${c}">${c}${state.sort.column === c ? (state.sort.direction === 'asc' ? ' (ASC)' : ' (DESC)') : ''}</th>`)
     .join('')}</tr>`;
 
   tbody.innerHTML = filtered
@@ -520,6 +661,27 @@ function bindEvents() {
     triggerBuildDownload();
   });
 
+  el.aiToggleBtn.addEventListener('click', () => {
+    setAiPanelOpen(!state.aiPanelOpen);
+  });
+
+  el.aiSendBtn.addEventListener('click', () => {
+    sendAiMessage().catch((error) => {
+      alert(`AI request failed: ${error.message}`);
+    });
+  });
+
+  el.aiInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      sendAiMessage().catch((error) => {
+        alert(`AI request failed: ${error.message}`);
+      });
+    }
+  });
+
+  bindAiPanelResize();
+
   el.architectureSelect.addEventListener('change', async (e) => {
     if (!confirmDiscardIfDirty()) {
       e.target.value = state.architectureId;
@@ -528,6 +690,8 @@ function bindEvents() {
     state.architectureId = e.target.value;
     updateReadonlyMode();
     await loadRows();
+    loadAiHistory();
+    renderAiMessages();
     pushNavHistory('architecture');
   });
 
@@ -658,6 +822,10 @@ async function initialize() {
   updateReadonlyMode();
   await loadRows();
   markEntityActive();
+  restoreAiPanelHeight();
+  loadAiHistory();
+  renderAiMessages();
+  setAiPanelOpen(false);
 
   el.searchInput.value = urlState.search || '';
   renderTable();
@@ -677,3 +845,4 @@ initialize().catch((error) => {
   console.error(error);
   alert(`Initialization failed: ${error.message}`);
 });
+

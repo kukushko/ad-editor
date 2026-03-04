@@ -4,7 +4,12 @@
   background: #f3f4f6;
 }
 
-body { margin: 0; }
+body {
+  margin: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
 
 .topbar {
   display: flex;
@@ -23,7 +28,8 @@ body { margin: 0; }
   grid-template-columns: 220px 1fr 420px;
   gap: 12px;
   padding: 12px;
-  height: calc(100vh - 64px);
+  flex: 1;
+  min-height: 0;
   box-sizing: border-box;
 }
 
@@ -42,7 +48,7 @@ body { margin: 0; }
 .search-row { display: flex; gap: 8px; margin: 8px 0; }
 .search-row input { flex: 1; padding: 6px; }
 
-.table-wrap { overflow: auto; max-height: calc(100vh - 220px); }
+.table-wrap { overflow: auto; max-height: 100%; }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th, td { border: 1px solid #e5e7eb; padding: 6px; vertical-align: top; }
 th { background: #f9fafb; cursor: pointer; position: sticky; top: 0; }
@@ -77,4 +83,110 @@ button.secondary { background: #fff; }
 
 .ref-link:hover {
   color: #1d4ed8;
+}
+
+.ai-panel {
+  background: #ffffff;
+  border-top: 1px solid #d1d5db;
+  padding: 0 12px 12px;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 140px;
+  height: 260px;
+  max-height: 65vh;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ai-resizer {
+  height: 10px;
+  margin: 0 -12px;
+  cursor: ns-resize;
+  background:
+    linear-gradient(to bottom, #d1d5db 0, #d1d5db 1px, transparent 1px, transparent 100%);
+}
+
+.ai-resizer::after {
+  content: '';
+  display: block;
+  width: 64px;
+  height: 3px;
+  border-radius: 999px;
+  background: #9ca3af;
+  margin: 3px auto 0;
+}
+
+.ai-panel-header {
+  display: flex;
+  align-items: center;
+}
+
+.ai-panel-header h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.ai-messages {
+  flex: 1;
+  overflow: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #f9fafb;
+  padding: 8px;
+}
+
+.ai-message {
+  margin-bottom: 8px;
+  padding: 8px;
+  border-radius: 6px;
+  white-space: pre-wrap;
+}
+
+.ai-message.user {
+  background: #dbeafe;
+}
+
+.ai-message.assistant {
+  background: #eef2ff;
+}
+
+.ai-message.system {
+  background: #f3f4f6;
+  color: #4b5563;
+}
+
+.ai-message-role {
+  font-weight: 600;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.ai-composer {
+  display: flex;
+  gap: 8px;
+}
+
+.ai-composer textarea {
+  flex: 1;
+  resize: vertical;
+  min-height: 54px;
+  max-height: 160px;
+}
+
+@media (max-width: 1280px) {
+  .layout {
+    grid-template-columns: 200px 1fr 360px;
+  }
+}
+
+@media (max-width: 960px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.hidden {
+  display: none !important;
 }

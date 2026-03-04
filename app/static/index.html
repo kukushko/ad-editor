@@ -13,6 +13,7 @@
         <label for="architectureSelect">Workspace</label>
         <select id="architectureSelect"></select>
         <button id="buildBtn" type="button">Build</button>
+        <button id="aiToggleBtn" type="button" class="secondary" aria-expanded="false">AI</button>
         <span id="readonlyBadge" class="badge hidden">Read-only (_root)</span>
       </div>
     </header>
@@ -52,6 +53,17 @@
         </div>
       </section>
     </main>
+    <section id="aiPanel" class="ai-panel hidden">
+      <div id="aiResizer" class="ai-resizer" aria-hidden="true"></div>
+      <div class="ai-panel-header">
+        <h2>AI Assistant</h2>
+      </div>
+      <div id="aiMessages" class="ai-messages" aria-live="polite"></div>
+      <div class="ai-composer">
+        <textarea id="aiInput" rows="2" placeholder="Ask the assistant about this architecture..."></textarea>
+        <button id="aiSendBtn" type="button">Send</button>
+      </div>
+    </section>
 
     <script src="/static/app.js"></script>
   </body>

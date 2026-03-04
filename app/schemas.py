@@ -72,3 +72,18 @@ class EditorMetadataResponse(BaseModel):
     entities: Dict[str, EditorEntityMetadata]
     enums: Dict[str, List[str]]
     filter_history_limit: int = 10
+
+
+class AIChatMessage(BaseModel):
+    role: str
+    content: str
+
+
+class AIChatRequest(BaseModel):
+    architecture_id: str
+    messages: List[AIChatMessage] = Field(default_factory=list)
+
+
+class AIChatResponse(BaseModel):
+    answer: str
+    protocol_steps: List[str] = Field(default_factory=list)
