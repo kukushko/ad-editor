@@ -87,3 +87,24 @@ class AIChatRequest(BaseModel):
 class AIChatResponse(BaseModel):
     answer: str
     protocol_steps: List[str] = Field(default_factory=list)
+
+
+class RAGIndexStatusResponse(BaseModel):
+    ready: bool
+    stale: bool
+    reason: str
+    architecture_id: str
+    index_path: str
+    indexed_files: int
+    indexed_chunks: int
+    index_created_at: str | None = None
+
+
+class RAGIndexBuildResponse(BaseModel):
+    ok: bool
+    architecture_id: str
+    index_path: str
+    files_indexed: int
+    chunks_indexed: int
+    model_name: str
+    created_at: str

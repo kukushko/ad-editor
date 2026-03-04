@@ -3,3 +3,4 @@ generated/
 .vscode/
 .idea/
 __pycache__/
+var/

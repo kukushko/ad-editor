@@ -19,6 +19,8 @@ from .schemas import (
     GitCheckoutRequest,
     GitCommitRequest,
     GitPushRequest,
+    RAGIndexBuildResponse,
+    RAGIndexStatusResponse,
     SpecPayload,
     ValidationIssueResponse,
     ValidationResponse,
@@ -26,6 +28,7 @@ from .schemas import (
 from .services.ai_assistant_service import AIAssistantService
 from .services.build_service import BuildService
 from .services.git_service import GitService
+from .services.rag_index_service import RAGIndexService
 from .services.spec_service import SpecService
 from .services.validation_service import ValidationService
 
@@ -34,12 +37,18 @@ spec_service = SpecService(settings.specs_dir)
 git_service = GitService(settings.repo_root)
 build_service = BuildService(settings.repo_root, settings.adtool_path, settings.output_dir, settings.specs_dir)
 validation_service = ValidationService(settings.specs_dir)
-ai_assistant_service = AIAssistantService(
+rag_index_service = RAGIndexService(
     spec_service=spec_service,
     specs_dir=settings.specs_dir,
+    var_dir=settings.var_dir,
+    embedding_model=settings.embedding_model,
+)
+ai_assistant_service = AIAssistantService(
+    rag_index_service=rag_index_service,
     openai_base_url=settings.openai_base_url,
     openai_model=settings.openai_model,
     openai_api_key=settings.openai_api_key,
+    rag_top_k=settings.rag_top_k,
     reasoning_log_enabled=settings.ai_reasoning_log_enabled,
     reasoning_log_max_chars=settings.ai_reasoning_log_max_chars,
     reasoning_log_colors=settings.ai_reasoning_log_colors,
@@ -180,6 +189,44 @@ def git_commit(request: GitCommitRequest) -> CommandResult:
 @app.post("/git/push", response_model=CommandResult)
 def git_push(request: GitPushRequest) -> CommandResult:
     return to_command_result(git_service.push(request.remote, request.branch))
+
+
+@app.get("/architectures/{architecture_id}/rag/index/status", response_model=RAGIndexStatusResponse)
+def rag_index_status(architecture_id: str) -> RAGIndexStatusResponse:
+    try:
+        status = rag_index_service.status(architecture_id)
+    except (FileNotFoundError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return RAGIndexStatusResponse(
+        ready=status.ready,
+        stale=status.stale,
+        reason=status.reason,
+        architecture_id=status.architecture_id,
+        index_path=status.index_path,
+        indexed_files=status.indexed_files,
+        indexed_chunks=status.indexed_chunks,
+        index_created_at=status.index_created_at,
+    )
+
+
+@app.post("/architectures/{architecture_id}/rag/index/build", response_model=RAGIndexBuildResponse)
+def rag_index_build(architecture_id: str) -> RAGIndexBuildResponse:
+    try:
+        result = rag_index_service.build_index(architecture_id)
+    except (FileNotFoundError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    return RAGIndexBuildResponse(
+        ok=result.ok,
+        architecture_id=result.architecture_id,
+        index_path=result.index_path,
+        files_indexed=result.files_indexed,
+        chunks_indexed=result.chunks_indexed,
+        model_name=result.model_name,
+        created_at=result.created_at,
+    )
 
 
 @app.post("/ai/chat", response_model=AIChatResponse)

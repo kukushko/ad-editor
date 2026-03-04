@@ -1,15 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any, Dict, List
 import json
 import logging
-import re
 import urllib.error
 import urllib.request
 
-from .spec_service import SpecService
+from .rag_index_service import RAGIndexService
 
 
 PLANNER_PROMPT = (
@@ -42,20 +40,20 @@ class AIProtocolResult:
 class AIAssistantService:
     def __init__(
         self,
-        spec_service: SpecService,
-        specs_dir: Path,
+        rag_index_service: RAGIndexService,
         openai_base_url: str,
         openai_model: str,
         openai_api_key: str,
+        rag_top_k: int = 6,
         reasoning_log_enabled: bool = True,
         reasoning_log_max_chars: int = 2400,
         reasoning_log_colors: bool = True,
     ) -> None:
-        self.spec_service = spec_service
-        self.specs_dir = specs_dir
+        self.rag_index_service = rag_index_service
         self.openai_base_url = openai_base_url.rstrip("/")
         self.openai_model = openai_model
         self.openai_api_key = openai_api_key
+        self.rag_top_k = max(1, rag_top_k)
         self.reasoning_log_enabled = reasoning_log_enabled
         self.reasoning_log_max_chars = max(600, reasoning_log_max_chars)
         self.reasoning_log_colors = reasoning_log_colors
@@ -96,10 +94,14 @@ class AIAssistantService:
         )
 
         queries = plan["retrieval_queries"] or plan["subtasks"] or [user_message]
-        snippets = self._retrieve_snippets(architecture_id, queries)
+        status = self.rag_index_service.status(architecture_id)
+        snippets = self.rag_index_service.retrieve(architecture_id, queries, top_k=self.rag_top_k)
         self._log_section(
             "RAG Retrieval",
             {
+                "index_ready": str(status.ready),
+                "index_stale": str(status.stale),
+                "index_reason": status.reason,
                 "query_count": str(len(queries)),
                 "snippet_count": str(len(snippets)),
                 "sources": "\n".join(f"- {snippet['source']}" for snippet in snippets) or "- (none)",
@@ -238,148 +240,6 @@ class AIAssistantService:
             "subtasks": norm_subtasks,
             "retrieval_queries": norm_queries,
         }
-
-    def _retrieve_snippets(self, architecture_id: str, queries: List[str], top_k: int = 6) -> List[Dict[str, str]]:
-        arch_key = "" if architecture_id == "_root" else architecture_id
-        arch_path = self.spec_service.get_arch_path(arch_key)
-
-        docs: List[Dict[str, Any]] = []
-        for yaml_file in sorted(arch_path.glob("*.yaml")):
-            try:
-                text = yaml_file.read_text(encoding="utf-8")
-            except OSError:
-                continue
-            docs.append({"source": yaml_file.name, "file_stem": yaml_file.stem, "text": text[:24000]})
-
-        if not docs:
-            return []
-
-        query_tokens: List[str] = []
-        for query in queries:
-            query_tokens.extend(self._tokens(query))
-        query_tokens = list(dict.fromkeys(query_tokens))
-        if not query_tokens:
-            query_tokens = self._tokens(" ".join(queries))
-
-        scored: List[tuple[float, Dict[str, str]]] = []
-        for doc in docs:
-            chunks = self._extract_yaml_chunks(doc["text"])
-            for chunk in chunks:
-                score = self._score_chunk(
-                    chunk["text"],
-                    query_tokens=query_tokens,
-                    raw_queries=queries,
-                    file_stem=doc["file_stem"],
-                )
-                if score <= 0:
-                    continue
-                scored.append(
-                    (
-                        score,
-                        {
-                            "source": doc["source"],
-                            "snippet": chunk["text"],
-                            "line": str(chunk["line"]),
-                        },
-                    )
-                )
-
-        # Keep strongest hits first, then enforce diversity by source file.
-        scored.sort(key=lambda item: item[0], reverse=True)
-        per_source_limit = 2
-        source_counts: Dict[str, int] = {}
-        selected: List[Dict[str, str]] = []
-        for score, snippet in scored:
-            source = snippet["source"]
-            current_count = source_counts.get(source, 0)
-            if current_count >= per_source_limit:
-                continue
-            source_counts[source] = current_count + 1
-            selected.append(snippet)
-            if len(selected) >= top_k:
-                break
-        return selected
-
-    def _extract_yaml_chunks(self, text: str, max_chunk_chars: int = 1000) -> List[Dict[str, Any]]:
-        lines = text.splitlines()
-        chunks: List[Dict[str, Any]] = []
-        n = len(lines)
-        i = 0
-
-        while i < n:
-            line = lines[i]
-            # Focus on list-item blocks in YAML; they usually represent meaningful entities.
-            if re.match(r"^\s*-\s+", line):
-                indent = len(line) - len(line.lstrip(" "))
-                start = i
-                i += 1
-                while i < n:
-                    current = lines[i]
-                    if re.match(r"^\s*-\s+", current):
-                        current_indent = len(current) - len(current.lstrip(" "))
-                        if current_indent == indent:
-                            break
-                    i += 1
-                block = "\n".join(lines[start:i]).strip()
-                if block:
-                    chunks.append({"line": start + 1, "text": block[:max_chunk_chars]})
-                continue
-            i += 1
-
-        # Fallback if file has no list blocks (or very small output).
-        if not chunks:
-            window = 12
-            step = 6
-            for start in range(0, n, step):
-                block = "\n".join(lines[start : start + window]).strip()
-                if block:
-                    chunks.append({"line": start + 1, "text": block[:max_chunk_chars]})
-                if len(chunks) >= 20:
-                    break
-
-        return chunks
-
-    def _score_chunk(self, chunk_text: str, query_tokens: List[str], raw_queries: List[str], file_stem: str) -> float:
-        lowered = chunk_text.lower()
-        if not lowered.strip():
-            return 0.0
-
-        score = 0.0
-        for token in query_tokens:
-            count = lowered.count(token)
-            if count > 0:
-                score += 2.0 + min(count, 3)
-
-        # Boost exact phrase matches from raw queries.
-        for query in raw_queries:
-            q = query.strip().lower()
-            if len(q) >= 6 and q in lowered:
-                score += 4.0
-
-        # If query tokens mention file theme (e.g. "views"), prioritize that file.
-        if file_stem.lower() in query_tokens:
-            score += 3.0
-
-        # Penalize URL-only or nearly URL-only fragments.
-        if self._looks_like_link_dump(chunk_text):
-            score -= 4.0
-
-        return score
-
-    def _looks_like_link_dump(self, chunk_text: str) -> bool:
-        lines = [line.strip() for line in chunk_text.splitlines() if line.strip()]
-        if not lines:
-            return False
-        url_lines = sum(1 for line in lines if line.startswith("http://") or line.startswith("https://") or ":// " in line)
-        return (url_lines / len(lines)) >= 0.7
-
-    def _tokens(self, text: str) -> List[str]:
-        raw = re.findall(r"[a-zA-Z0-9_\-]{3,}", text.lower())
-        stop_words = {
-            "the", "and", "for", "with", "that", "this", "from", "into", "about", "please", "user", "chat", "help",
-            "architecture", "editor", "panel", "request",
-        }
-        return [token for token in raw if token not in stop_words][:40]
 
     def _format_snippets(self, snippets: List[Dict[str, str]]) -> str:
         if not snippets:

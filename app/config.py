@@ -17,6 +17,9 @@ class Settings:
     ai_reasoning_log_enabled: bool
     ai_reasoning_log_max_chars: int
     ai_reasoning_log_colors: bool
+    var_dir: Path
+    embedding_model: str
+    rag_top_k: int
 
 
 def _env_bool(name: str, default: bool) -> bool:
@@ -47,6 +50,9 @@ def load_settings() -> Settings:
     ai_reasoning_log_enabled = _env_bool("AD_EDITOR_AI_REASONING_LOG", True)
     ai_reasoning_log_max_chars = _env_int("AD_EDITOR_AI_REASONING_LOG_MAX_CHARS", 2400)
     ai_reasoning_log_colors = _env_bool("AD_EDITOR_AI_REASONING_LOG_COLORS", True)
+    var_dir = Path(os.getenv("AD_EDITOR_VAR_DIR", repo_root / "var"))
+    embedding_model = os.getenv("AD_EDITOR_EMBEDDING_MODEL", "intfloat/multilingual-e5-small")
+    rag_top_k = _env_int("AD_EDITOR_RAG_TOP_K", 6)
 
     return Settings(
         repo_root=repo_root.resolve(),
@@ -59,4 +65,7 @@ def load_settings() -> Settings:
         ai_reasoning_log_enabled=ai_reasoning_log_enabled,
         ai_reasoning_log_max_chars=ai_reasoning_log_max_chars,
         ai_reasoning_log_colors=ai_reasoning_log_colors,
+        var_dir=var_dir.resolve(),
+        embedding_model=embedding_model,
+        rag_top_k=max(1, rag_top_k),
     )

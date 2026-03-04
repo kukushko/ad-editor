@@ -12,6 +12,8 @@ const state = {
   aiMessages: [],
   aiPanelOpen: false,
   aiSending: false,
+  ragIndexStatus: null,
+  ragIndexBuilding: false,
 };
 
 const el = {
@@ -28,6 +30,9 @@ const el = {
   newRowBtn: document.getElementById('newRowBtn'),
   deleteRowBtn: document.getElementById('deleteRowBtn'),
   buildBtn: document.getElementById('buildBtn'),
+  buildIndexBtn: document.getElementById('buildIndexBtn'),
+  buildIndexLabel: document.getElementById('buildIndexLabel'),
+  buildIndexWarn: document.getElementById('buildIndexWarn'),
   aiToggleBtn: document.getElementById('aiToggleBtn'),
   aiPanel: document.getElementById('aiPanel'),
   aiResizer: document.getElementById('aiResizer'),
@@ -61,6 +66,42 @@ async function apiPost(url, data) {
   });
   if (!r.ok) throw new Error(await r.text());
   return r.json();
+}
+
+function setBuildIndexButtonState() {
+  const stale = !!(state.ragIndexStatus && state.ragIndexStatus.stale);
+  const busy = state.ragIndexBuilding;
+  el.buildIndexBtn.disabled = busy;
+  el.buildIndexBtn.classList.toggle('stale', stale);
+  el.buildIndexWarn.classList.toggle('hidden', !stale);
+  el.buildIndexBtn.title = state.ragIndexStatus?.reason || '';
+  el.buildIndexLabel.textContent = busy ? 'Building Index...' : 'Build Index';
+}
+
+async function refreshRagIndexStatus() {
+  if (!state.architectureId) return;
+  try {
+    const status = await apiGet(`/architectures/${state.architectureId}/rag/index/status`);
+    state.ragIndexStatus = status;
+  } catch (error) {
+    state.ragIndexStatus = { stale: true, reason: `Status error: ${error.message}` };
+  }
+  setBuildIndexButtonState();
+}
+
+async function buildRagIndex() {
+  if (!state.architectureId || state.ragIndexBuilding) return;
+  state.ragIndexBuilding = true;
+  setBuildIndexButtonState();
+  try {
+    const result = await apiPost(`/architectures/${state.architectureId}/rag/index/build`, {});
+    alert(`Index built: ${result.chunks_indexed} chunks from ${result.files_indexed} files.`);
+  } catch (error) {
+    alert(`Build Index failed: ${error.message}`);
+  } finally {
+    state.ragIndexBuilding = false;
+    await refreshRagIndexStatus();
+  }
 }
 
 function getReferenceCacheKey(architectureId, entity) {
@@ -160,6 +201,7 @@ async function applyNavState(navState) {
 
   if (reloadNeeded) {
     await loadRows();
+    await refreshRagIndexStatus();
   }
 
   el.searchInput.value = navState.search || '';
@@ -611,6 +653,7 @@ async function saveCurrent() {
   state.dirty = false;
   renderTable();
   updateActionButtons();
+  await refreshRagIndexStatus();
   alert('Saved.');
 }
 
@@ -632,6 +675,7 @@ async function deleteCurrent() {
   renderTable();
   renderForm();
   updateActionButtons();
+  await refreshRagIndexStatus();
   alert('Deleted.');
 }
 
@@ -666,6 +710,12 @@ function updateReadonlyMode() {
 function bindEvents() {
   el.buildBtn.addEventListener('click', () => {
     triggerBuildDownload();
+  });
+
+  el.buildIndexBtn.addEventListener('click', () => {
+    buildRagIndex().catch((error) => {
+      alert(`Build Index failed: ${error.message}`);
+    });
   });
 
   el.aiToggleBtn.addEventListener('click', () => {
@@ -704,6 +754,7 @@ function bindEvents() {
     state.architectureId = e.target.value;
     updateReadonlyMode();
     await loadRows();
+    await refreshRagIndexStatus();
     loadAiHistory();
     renderAiMessages();
     pushNavHistory('architecture');
@@ -835,6 +886,7 @@ async function initialize() {
 
   updateReadonlyMode();
   await loadRows();
+  await refreshRagIndexStatus();
   markEntityActive();
   restoreAiPanelHeight();
   loadAiHistory();
